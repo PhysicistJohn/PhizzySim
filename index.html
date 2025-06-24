@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Physics Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #controls button {
+            display: block;
+            margin: 5px 0;
+            padding: 5px 10px;
+            width: 100%;
+        }
+        #controls label {
+            display: block;
+            margin: 10px 0 5px 0;
+        }
+        #controls input[type="range"] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Earth Physics Simulation</h3>
+        <p>Day: <span id="day">0</span></p>
+        <p>Time: <span id="time">00:00</span></p>
+        <p>Season: <span id="season">Spring</span></p>
+    </div>
+    <div id="controls">
+        <h3>Controls</h3>
+        <label>Time Speed: <span id="speedLabel">1x</span></label>
+        <input type="range" id="timeSpeed" min="0" max="100" value="1" step="0.1">
+        <button id="pauseBtn">Pause</button>
+        <button id="resetBtn">Reset</button>
+        <label>View:</label>
+        <button id="viewEarth">Earth View</button>
+        <button id="viewOrbit">Orbital View</button>
+        <button id="viewEarthSun">Earth-Sun View</button>
+        
+        <h4>Magnetosphere</h4>
+        <label>
+            <input type="checkbox" id="showMagnetosphere" checked> Magnetosphere
+        </label>
+        <label>
+            <input type="checkbox" id="showSolarWind" checked> Solar Wind
+        </label>
+        <label>
+            <input type="checkbox" id="showRadiationBelts" checked> Radiation Belts
+        </label>
+        <label>
+            <input type="checkbox" id="showAurora" checked> Aurora
+        </label>
+        <label>
+            <input type="checkbox" id="showFieldLines" checked> Field Lines
+        </label>
+        
+        <h4>Solar Wind Parameters</h4>
+        <label>Wind Speed: <span id="windSpeedLabel">400</span> km/s</label>
+        <input type="range" id="windSpeed" min="200" max="800" value="400" step="10">
+        <label>Wind Density: <span id="windDensityLabel">5</span> p/cm³</label>
+        <input type="range" id="windDensity" min="1" max="20" value="5" step="0.5">
+        <label>Temperature: <span id="tempLabel">100000</span> K</label>
+        <input type="range" id="windTemp" min="50000" max="2000000" value="100000" step="10000">
+        <label>Magnetic Field: <span id="bFieldLabel">5</span> nT</label>
+        <input type="range" id="windBField" min="1" max="50" value="5" step="1">
+        
+        <h4>Particle Info</h4>
+        <div id="particleInfo" style="font-size: 12px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 3px; margin-top: 10px;">
+            <div><strong>Solar Wind Particles:</strong></div>
+            <div>• Protons (H⁺): 95% - Main component</div>
+            <div>• Alpha particles (He²⁺): 4% - Helium nuclei</div>
+            <div>• Heavy ions: 1% - C, O, Si, Fe</div>
+            <br>
+            <div><strong>Color Coding:</strong></div>
+            <div style="color: #ff4444;">• Red: Outside magnetosphere</div>
+            <div style="color: #4444ff;">• Blue: Inside magnetosphere</div>
+            <div style="color: #44ff44;">• Green: Magnetopause boundary</div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
