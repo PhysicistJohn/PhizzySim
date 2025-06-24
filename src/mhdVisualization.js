@@ -127,8 +127,8 @@ export class MHDVisualization {
         // Start streamlines from multiple locations for 3D visualization
         
         // 1. Upstream plane (main solar wind flow)
-        for (let y = -15; y <= 15; y += 4) {
-            for (let z = -15; z <= 15; z += 4) {
+        for (let y = -15; y <= 15; y += 6) {
+            for (let z = -15; z <= 15; z += 6) {
                 const x = -25;  // Upstream position
                 const r = Math.sqrt(y*y + z*z);
                 if (r <= 18) {  // Within reasonable distance
@@ -141,8 +141,8 @@ export class MHDVisualization {
         }
         
         // 2. Side flows (bow shock region)
-        for (let x = -15; x <= -5; x += 5) {
-            for (let y = -20; y <= 20; y += 8) {
+        for (let x = -15; x <= -5; x += 10) {
+            for (let y = -20; y <= 20; y += 10) {
                 for (let z = -10; z <= 10; z += 10) {
                     const r = Math.sqrt(x*x + y*y + z*z);
                     if (r > 3 && r < 25) {  // Outside Earth, reasonable distance
@@ -155,9 +155,9 @@ export class MHDVisualization {
             }
         }
         
-        // 3. Magnetotail region
-        for (let x = 5; x <= 20; x += 5) {
-            for (let y = -8; y <= 8; y += 4) {
+        // 3. Magnetotail region  
+        for (let x = 5; x <= 20; x += 10) {
+            for (let y = -8; y <= 8; y += 8) {
                 for (let z = -5; z <= 5; z += 5) {
                     const r = Math.sqrt(x*x + y*y + z*z);
                     if (r > 2) {  // Outside Earth
@@ -199,10 +199,31 @@ export class MHDVisualization {
             const material = new THREE.LineBasicMaterial({
                 vertexColors: true,
                 transparent: true,
-                opacity: 0.6
+                opacity: 0.9,
+                linewidth: 3  // Thicker lines
             });
             
-            const lineObj = new THREE.Line(geometry, material);
+            // Create tube geometry for more visible streamlines
+            const curve = new THREE.CatmullRomCurve3(
+                line.map(point => new THREE.Vector3(point.x, point.y, point.z))
+            );
+            
+            const tubeGeometry = new THREE.TubeGeometry(curve, Math.max(line.length, 20), 0.15, 8, false);
+            
+            // Color based on streamline position (bow shock region vs magnetotail)
+            const startX = line[0].x;
+            let hue = 0.6; // Default blue-green
+            if (startX < -15) hue = 0.55; // Cyan for upstream
+            else if (startX > 0) hue = 0.75; // Purple for magnetotail
+            
+            const tubeMaterial = new THREE.MeshBasicMaterial({
+                vertexColors: false,
+                transparent: true,
+                opacity: 0.9,
+                color: new THREE.Color().setHSL(hue, 0.8, 0.6)
+            });
+            
+            const lineObj = new THREE.Mesh(tubeGeometry, tubeMaterial);
             this.streamlineGroup.add(lineObj);
         });
         
@@ -284,61 +305,99 @@ export class MHDVisualization {
     createPressureContours() {
         this.pressureGroup = new THREE.Group();
         
-        // Create pressure contour in equatorial plane
-        const nx = 100;
-        const ny = 100;
-        const geometry = new THREE.PlaneGeometry(40, 40, nx - 1, ny - 1);
+        // Create 3D pressure visualization using particle cloud
+        const particles = [];
+        const particleCount = 2000;
         
-        const vertices = geometry.attributes.position.array;
-        const colors = new Float32Array(vertices.length);
-        
-        for (let i = 0; i < nx; i++) {
-            for (let j = 0; j < ny; j++) {
-                const idx = (i * ny + j) * 3;
+        // Sample pressure at random 3D points
+        for (let i = 0; i < particleCount; i++) {
+            // Generate random position in simulation domain
+            const x = (Math.random() - 0.5) * 50 - 5;  // -30 to 20 Earth radii
+            const y = (Math.random() - 0.5) * 40;      // -20 to 20 Earth radii  
+            const z = (Math.random() - 0.5) * 30;      // -15 to 15 Earth radii
+            
+            const r = Math.sqrt(x*x + y*y + z*z);
+            if (r < 1.2) continue; // Skip if too close to Earth
+            
+            const field = this.mhd.getFieldAt(
+                x * this.mhd.earthRadius,
+                y * this.mhd.earthRadius,
+                z * this.mhd.earthRadius
+            );
+            
+            if (field) {
+                // Normalize pressure
+                const p_norm = field.pressure / (this.mhd.swDensity * this.mhd.k_B * this.mhd.swTemperature);
                 
-                const x = (i / (nx - 1) - 0.5) * 40 - 10;  // -30 to 10 Earth radii
-                const y = (j / (ny - 1) - 0.5) * 40;       // -20 to 20 Earth radii
-                const z = 0;
-                
-                vertices[idx] = x;
-                vertices[idx + 1] = y;
-                vertices[idx + 2] = z;
-                
-                const field = this.mhd.getFieldAt(
-                    x * this.mhd.earthRadius,
-                    y * this.mhd.earthRadius,
-                    z * this.mhd.earthRadius
-                );
-                
-                if (field) {
-                    // Normalize pressure
-                    const p_norm = field.pressure / (this.mhd.swDensity * this.mhd.k_B * this.mhd.swTemperature);
+                // Only show high pressure regions
+                if (p_norm > 1.5) {
                     const logP = Math.log10(Math.max(p_norm, 0.1));
                     
-                    // Color mapping (blue = low, red = high)
-                    const t = Math.max(0, Math.min(1, (logP + 1) / 2));
-                    colors[idx] = t;
-                    colors[idx + 1] = 0.5 * (1 - t);
-                    colors[idx + 2] = 1 - t;
-                } else {
-                    colors[idx] = 0;
-                    colors[idx + 1] = 0;
-                    colors[idx + 2] = 0;
+                    // Color mapping (blue = medium, red = high pressure)
+                    const t = Math.max(0, Math.min(1, (logP) / 2));
+                    
+                    particles.push({
+                        position: new THREE.Vector3(x, y, z),
+                        pressure: p_norm,
+                        color: new THREE.Color(t, 0.3 * (1 - t), 1 - t),
+                        size: 0.1 + t * 0.3  // Larger particles for higher pressure
+                    });
                 }
             }
         }
         
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        // Create particle system for pressure visualization
+        const positions = new Float32Array(particles.length * 3);
+        const colors = new Float32Array(particles.length * 3);
+        const sizes = new Float32Array(particles.length);
         
-        const material = new THREE.MeshBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.3,
-            side: THREE.DoubleSide
+        particles.forEach((particle, i) => {
+            positions[i * 3] = particle.position.x;
+            positions[i * 3 + 1] = particle.position.y;
+            positions[i * 3 + 2] = particle.position.z;
+            
+            colors[i * 3] = particle.color.r;
+            colors[i * 3 + 1] = particle.color.g;
+            colors[i * 3 + 2] = particle.color.b;
+            
+            sizes[i] = particle.size;
         });
         
-        const mesh = new THREE.Mesh(geometry, material);
-        this.pressureGroup.add(mesh);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0 }
+            },
+            vertexShader: `
+                attribute float size;
+                varying vec3 vColor;
+                void main() {
+                    vColor = color;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * 300.0 / length(mvPosition.xyz);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    float r = length(gl_PointCoord - vec2(0.5));
+                    if (r > 0.5) discard;
+                    float alpha = 1.0 - r * 2.0;
+                    gl_FragColor = vec4(vColor, alpha * 0.6);
+                }
+            `,
+            transparent: true,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending
+        });
+        
+        const particleSystem = new THREE.Points(geometry, material);
+        this.pressureGroup.add(particleSystem);
         
         this.group.add(this.pressureGroup);
     }
