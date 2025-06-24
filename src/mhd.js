@@ -163,14 +163,17 @@ export class MHDSimulation {
     
     // MHD equations solver using finite difference method
     step(dt) {
-        // Optimized step function - only calculate essential physics
-        
-        // Simple advection for demonstration
+        // Allocate arrays for new values
+        const newRho = this.allocate3DArray();
         const newVx = this.allocate3DArray();
         const newVy = this.allocate3DArray();
         const newVz = this.allocate3DArray();
+        const newBx = this.allocate3DArray();
+        const newBy = this.allocate3DArray();
+        const newBz = this.allocate3DArray();
+        const newP = this.allocate3DArray();
         
-        // Simplified physics loop
+        // Solve MHD equations with proper physics
         for (let i = 1; i < this.nx - 1; i++) {
             for (let j = 1; j < this.ny - 1; j++) {
                 for (let k = 1; k < this.nz - 1; k++) {
@@ -180,30 +183,103 @@ export class MHDSimulation {
                     const r = Math.sqrt(x * x + y * y + z * z);
                     
                     if (r < this.earthRadius) {
-                        // Inside Earth - no flow
+                        // Inside Earth - no flow, dipole field
                         newVx[i][j][k] = 0;
                         newVy[i][j][k] = 0;
                         newVz[i][j][k] = 0;
-                    } else if (r < 3 * this.earthRadius) {
-                        // Near Earth - deflected flow
-                        const deflection = 1 - this.earthRadius / r;
-                        newVx[i][j][k] = this.vx[i][j][k] * deflection;
-                        newVy[i][j][k] = this.vy[i][j][k] + y / r * 0.1 * this.swVelocity;
-                        newVz[i][j][k] = this.vz[i][j][k] + z / r * 0.1 * this.swVelocity;
+                        newRho[i][j][k] = this.rho[i][j][k];
+                        
+                        const dipole = this.calculateDipoleField(x, y, z);
+                        newBx[i][j][k] = dipole.x;
+                        newBy[i][j][k] = dipole.y;
+                        newBz[i][j][k] = dipole.z;
+                        newP[i][j][k] = this.p[i][j][k];
                     } else {
-                        // Far field - maintain solar wind
-                        newVx[i][j][k] = -this.swVelocity;
-                        newVy[i][j][k] = 0;
-                        newVz[i][j][k] = 0;
+                        // Outside Earth - solve MHD equations
+                        
+                        // Current values
+                        const rho = this.rho[i][j][k];
+                        const vx = this.vx[i][j][k];
+                        const vy = this.vy[i][j][k];
+                        const vz = this.vz[i][j][k];
+                        const Bx = this.Bx[i][j][k];
+                        const By = this.By[i][j][k];
+                        const Bz = this.Bz[i][j][k];
+                        const p = this.p[i][j][k];
+                        
+                        // Calculate gradients and derivatives
+                        const drho_dt = -this.calculateDivergence(
+                            this.multiplyFields(this.rho, this.vx),
+                            this.multiplyFields(this.rho, this.vy),
+                            this.multiplyFields(this.rho, this.vz),
+                            i, j, k
+                        );
+                        
+                        // Pressure gradient
+                        const dp_dx = this.partialDerivative(this.p, 'x', i, j, k);
+                        const dp_dy = this.partialDerivative(this.p, 'y', i, j, k);
+                        const dp_dz = this.partialDerivative(this.p, 'z', i, j, k);
+                        
+                        // Magnetic pressure and tension
+                        const B2 = Bx*Bx + By*By + Bz*Bz;
+                        const magPressure = B2 / (2 * this.mu0);
+                        
+                        // J × B force (simplified)
+                        const curlB = this.calculateCurl({x: this.Bx, y: this.By, z: this.Bz}, i, j, k);
+                        const J_x = curlB.x / this.mu0;
+                        const J_y = curlB.y / this.mu0;
+                        const J_z = curlB.z / this.mu0;
+                        
+                        const JxB_x = J_y * Bz - J_z * By;
+                        const JxB_y = J_z * Bx - J_x * Bz;
+                        const JxB_z = J_x * By - J_y * Bx;
+                        
+                        // Momentum equation: ∂v/∂t = -∇p/ρ + (J×B)/ρ
+                        const dvx_dt = -dp_dx / rho + JxB_x / rho;
+                        const dvy_dt = -dp_dy / rho + JxB_y / rho;
+                        const dvz_dt = -dp_dz / rho + JxB_z / rho;
+                        
+                        // Induction equation: ∂B/∂t = ∇×(v×B)
+                        const vxB_x = vy * Bz - vz * By;
+                        const vxB_y = vz * Bx - vx * Bz;
+                        const vxB_z = vx * By - vy * Bx;
+                        
+                        const curlVxB = this.calculateCurl({
+                            x: this.allocateAndFill(vxB_x),
+                            y: this.allocateAndFill(vxB_y),
+                            z: this.allocateAndFill(vxB_z)
+                        }, i, j, k);
+                        
+                        const dBx_dt = curlVxB.x;
+                        const dBy_dt = curlVxB.y;
+                        const dBz_dt = curlVxB.z;
+                        
+                        // Update fields
+                        newRho[i][j][k] = Math.max(rho + dt * drho_dt, this.swDensity * this.m_p * 0.1);
+                        newVx[i][j][k] = vx + dt * dvx_dt;
+                        newVy[i][j][k] = vy + dt * dvy_dt;
+                        newVz[i][j][k] = vz + dt * dvz_dt;
+                        newBx[i][j][k] = Bx + dt * dBx_dt;
+                        newBy[i][j][k] = By + dt * dBy_dt;
+                        newBz[i][j][k] = Bz + dt * dBz_dt;
+                        
+                        // Ideal gas law for pressure
+                        const n = newRho[i][j][k] / this.m_p;
+                        newP[i][j][k] = n * this.k_B * this.swTemperature;
                     }
                 }
             }
         }
         
-        // Update velocity fields
+        // Update all fields
+        this.rho = newRho;
         this.vx = newVx;
         this.vy = newVy;
         this.vz = newVz;
+        this.Bx = newBx;
+        this.By = newBy;
+        this.Bz = newBz;
+        this.p = newP;
         
         // Apply boundary conditions
         this.applyBoundaryConditions();
@@ -295,6 +371,18 @@ export class MHDSimulation {
             array[i] = [];
             for (let j = 0; j < this.ny; j++) {
                 array[i][j] = new Float32Array(this.nz);
+            }
+        }
+        return array;
+    }
+    
+    allocateAndFill(value) {
+        const array = this.allocate3DArray();
+        for (let i = 0; i < this.nx; i++) {
+            for (let j = 0; j < this.ny; j++) {
+                for (let k = 0; k < this.nz; k++) {
+                    array[i][j][k] = value;
+                }
             }
         }
         return array;

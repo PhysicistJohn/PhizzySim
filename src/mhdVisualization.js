@@ -121,16 +121,51 @@ export class MHDVisualization {
     createStreamlines() {
         this.streamlineGroup = new THREE.Group();
         
-        // Create velocity streamlines in the equatorial plane
+        // Create 3D velocity streamlines from multiple starting surfaces
         const streamlines = [];
         
-        for (let x = -20; x <= 5; x += 5) {
-            for (let y = -10; y <= 10; y += 5) {
-                const z = 0;  // Equatorial plane
-                
-                const streamline = this.traceStreamline({ x, y, z }, 200);
-                if (streamline.length > 10) {
-                    streamlines.push(streamline);
+        // Start streamlines from multiple locations for 3D visualization
+        
+        // 1. Upstream plane (main solar wind flow)
+        for (let y = -15; y <= 15; y += 4) {
+            for (let z = -15; z <= 15; z += 4) {
+                const x = -25;  // Upstream position
+                const r = Math.sqrt(y*y + z*z);
+                if (r <= 18) {  // Within reasonable distance
+                    const streamline = this.traceStreamline({ x, y, z }, 200);
+                    if (streamline.length > 10) {
+                        streamlines.push(streamline);
+                    }
+                }
+            }
+        }
+        
+        // 2. Side flows (bow shock region)
+        for (let x = -15; x <= -5; x += 5) {
+            for (let y = -20; y <= 20; y += 8) {
+                for (let z = -10; z <= 10; z += 10) {
+                    const r = Math.sqrt(x*x + y*y + z*z);
+                    if (r > 3 && r < 25) {  // Outside Earth, reasonable distance
+                        const streamline = this.traceStreamline({ x, y, z }, 150);
+                        if (streamline.length > 5) {
+                            streamlines.push(streamline);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 3. Magnetotail region
+        for (let x = 5; x <= 20; x += 5) {
+            for (let y = -8; y <= 8; y += 4) {
+                for (let z = -5; z <= 5; z += 5) {
+                    const r = Math.sqrt(x*x + y*y + z*z);
+                    if (r > 2) {  // Outside Earth
+                        const streamline = this.traceStreamline({ x, y, z }, 100);
+                        if (streamline.length > 5) {
+                            streamlines.push(streamline);
+                        }
+                    }
                 }
             }
         }
@@ -144,11 +179,18 @@ export class MHDVisualization {
             line.forEach((point, i) => {
                 vertices.push(point.x, point.y, point.z);
                 
-                // Color by velocity magnitude
-                const speed = Math.sqrt(point.vx * point.vx + point.vy * point.vy + point.vz * point.vz);
+                // Color by velocity magnitude with better scaling
+                const speed = point.speed || Math.sqrt(point.vx * point.vx + point.vy * point.vy + point.vz * point.vz);
                 const normalizedSpeed = Math.min(speed / this.mhd.swVelocity, 1);
                 
-                colors.push(normalizedSpeed, 0.5, 1 - normalizedSpeed);
+                // Better color scheme: blue (slow) -> green (medium) -> red (fast)
+                if (normalizedSpeed < 0.5) {
+                    const t = normalizedSpeed * 2;
+                    colors.push(0.2, 0.2 + t * 0.6, 1.0); // Blue to cyan
+                } else {
+                    const t = (normalizedSpeed - 0.5) * 2;
+                    colors.push(0.2 + t * 0.8, 0.8, 1.0 - t * 0.8); // Cyan to red
+                }
             });
             
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
@@ -170,7 +212,7 @@ export class MHDVisualization {
     traceStreamline(start, maxSteps) {
         const line = [];
         let pos = { ...start };
-        const dt = 0.05;  // Time step
+        const dt = 0.02;  // Smaller time step for accuracy
         
         for (let i = 0; i < maxSteps; i++) {
             const field = this.mhd.getFieldAt(
@@ -192,13 +234,44 @@ export class MHDVisualization {
                 z: pos.z,
                 vx: v.x,
                 vy: v.y,
-                vz: v.z
+                vz: v.z,
+                speed: vmag
             });
             
-            // Step along streamline
-            pos.x += dt * v.x / this.mhd.earthRadius;
-            pos.y += dt * v.y / this.mhd.earthRadius;
-            pos.z += dt * v.z / this.mhd.earthRadius;
+            // Use RK2 integration for better accuracy
+            const k1_x = v.x / this.mhd.earthRadius;
+            const k1_y = v.y / this.mhd.earthRadius;
+            const k1_z = v.z / this.mhd.earthRadius;
+            
+            // Half step
+            const mid_pos = {
+                x: pos.x + 0.5 * dt * k1_x,
+                y: pos.y + 0.5 * dt * k1_y,
+                z: pos.z + 0.5 * dt * k1_z
+            };
+            
+            const field_mid = this.mhd.getFieldAt(
+                mid_pos.x * this.mhd.earthRadius,
+                mid_pos.y * this.mhd.earthRadius,
+                mid_pos.z * this.mhd.earthRadius
+            );
+            
+            if (field_mid) {
+                const v_mid = field_mid.velocity;
+                const k2_x = v_mid.x / this.mhd.earthRadius;
+                const k2_y = v_mid.y / this.mhd.earthRadius;
+                const k2_z = v_mid.z / this.mhd.earthRadius;
+                
+                // Full step with midpoint velocity
+                pos.x += dt * k2_x;
+                pos.y += dt * k2_y;
+                pos.z += dt * k2_z;
+            } else {
+                // Fallback to Euler step
+                pos.x += dt * k1_x;
+                pos.y += dt * k1_y;
+                pos.z += dt * k1_z;
+            }
             
             // Check boundaries
             const r = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
