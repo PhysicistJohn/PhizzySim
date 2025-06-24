@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { MHDSimulation } from './mhd.js';
+import { MHDSimulationGPU } from './mhdGPU.js';
 import { MHDVisualization } from './mhdVisualization.js';
 
 class MHDApp {
@@ -49,8 +50,16 @@ class MHDApp {
     }
     
     createScene() {
-        // Initialize MHD simulation
-        this.mhdSim = new MHDSimulation();
+        // Try GPU acceleration first
+        try {
+            this.mhdSim = new MHDSimulationGPU();
+            console.log('Using GPU acceleration!');
+            this.isGPU = true;
+        } catch (e) {
+            console.log('GPU not available, using CPU:', e.message);
+            this.mhdSim = new MHDSimulation();
+            this.isGPU = false;
+        }
         
         // Create visualization
         this.mhdVis = new MHDVisualization(this.mhdSim);
@@ -131,6 +140,7 @@ class MHDApp {
                 <div>Simulation Time: <span id="simTime">0.0</span> s</div>
                 <div>Magnetopause: <span id="mpDist">0.0</span> R<sub>E</sub></div>
                 <div>Grid Points: <span id="totalGridPoints">8192</span></div>
+                <div>Acceleration: <span id="gpuStatus">Checking...</span></div>
             </div>
         `;
         document.body.appendChild(gui);
@@ -212,6 +222,10 @@ class MHDApp {
         // Update initial grid point count
         document.getElementById('totalGridPoints').textContent = 
             (this.mhdSim.nx * this.mhdSim.ny * this.mhdSim.nz).toLocaleString();
+            
+        // Update GPU status
+        document.getElementById('gpuStatus').textContent = this.isGPU ? 'GPU Enabled' : 'CPU Only';
+        document.getElementById('gpuStatus').style.color = this.isGPU ? '#00ff00' : '#ffaa00';
     }
     
     animate() {
