@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Optics Bench - Maxwell Physics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        #mainCanvas {
+            display: block;
+            background: #000;
+            cursor: crosshair;
+        }
+        
+        #rayDiagram {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        
+        .panel {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .controls-panel {
+            top: 20px;
+            left: 20px;
+            width: 280px;
+        }
+        
+        .measurements-panel {
+            top: 20px;
+            right: 20px;
+            width: 250px;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #00ff88;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        button {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            margin: 2px;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+            border-color: #00ff88;
+        }
+        
+        button.active {
+            background: #00ff88;
+            color: #000;
+            border-color: #00ff88;
+        }
+        
+        select {
+            width: 100%;
+            padding: 6px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        input[type="number"] {
+            width: 60px;
+            padding: 4px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .value-display {
+            display: inline-block;
+            color: #00ff88;
+            font-weight: 600;
+            min-width: 60px;
+        }
+        
+        .measurement-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        
+        .measurement-label {
+            color: #aaa;
+        }
+        
+        .measurement-value {
+            color: #00ff88;
+            font-weight: 600;
+        }
+        
+        .wavelength-display {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 10px;
+            border: 1px solid #444;
+        }
+        
+        .component-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="rayDiagram"></canvas>
+    
+    <div class="panel controls-panel">
+        <div class="title">Optical Components</div>
+        
+        <div class="control-group">
+            <label>Light Source</label>
+            <div class="component-buttons">
+                <button id="addLaser" class="active">Laser</button>
+                <button id="addPointSource">Point Source</button>
+                <button id="addCollimated">Collimated</button>
+                <button id="addGaussian">Gaussian Beam</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Wavelength (nm)</label>
+            <input type="range" id="wavelength" min="380" max="780" value="532" step="1">
+            <div>
+                <span class="value-display" id="wavelengthValue">532</span> nm
+                <span class="wavelength-display" id="wavelengthColor"></span>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Optical Elements</label>
+            <div class="component-buttons">
+                <button id="addMirror">Mirror</button>
+                <button id="addLens">Lens</button>
+                <button id="addPrism">Prism</button>
+                <button id="addGrating">Grating</button>
+                <button id="addAperture">Aperture</button>
+                <button id="addBeamSplitter">Beam Splitter</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Material</label>
+            <select id="materialSelect">
+                <option value="BK7">BK7 Glass</option>
+                <option value="fusedSilica">Fused Silica</option>
+                <option value="SF11">SF11 Dense Flint</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Tools</label>
+            <div class="component-buttons">
+                <button id="selectMode">Select</button>
+                <button id="moveMode">Move</button>
+                <button id="rotateMode">Rotate</button>
+                <button id="deleteMode">Delete</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Ray Density</label>
+            <input type="range" id="rayDensity" min="1" max="50" value="10">
+            <span class="value-display" id="rayDensityValue">10</span>
+        </div>
+        
+        <div class="control-group">
+            <button id="clearAll" style="width: 100%;">Clear All</button>
+        </div>
+    </div>
+    
+    <div class="panel measurements-panel">
+        <div class="title">Optical Analysis</div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Active Wavelength:</span>
+            <span class="measurement-value" id="activeWavelength">532 nm</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Refractive Index:</span>
+            <span class="measurement-value" id="refractiveIndex">1.5168</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Total Optical Path:</span>
+            <span class="measurement-value" id="opticalPath">0.00 mm</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Beam Divergence:</span>
+            <span class="measurement-value" id="beamDivergence">0.0 mrad</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Spot Size:</span>
+            <span class="measurement-value" id="spotSize">0.0 μm</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Power Throughput:</span>
+            <span class="measurement-value" id="powerThroughput">100%</span>
+        </div>
+        
+        <hr style="margin: 10px 0; border-color: #333;">
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Aberrations:</span>
+            <span class="measurement-value" id="aberrations">None</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">Focal Length:</span>
+            <span class="measurement-value" id="focalLength">--</span>
+        </div>
+        
+        <div class="measurement-row">
+            <span class="measurement-label">F-Number:</span>
+            <span class="measurement-value" id="fNumber">--</span>
+        </div>
+    </div>
+    
+    <script src="maxwell-optics-engine.js"></script>
+    <script src="zemax-optics-bench.js"></script>
+    <script>
+        // Debug initialization
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:red;color:white;padding:20px;z-index:9999';
+            errorDiv.textContent = 'Error: ' + e.error.message;
+            document.body.appendChild(errorDiv);
+        });
+        
+        console.log('Scripts loaded, checking for opticsBench...');
+        setTimeout(() => {
+            if (typeof opticsBench === 'undefined') {
+                console.error('opticsBench not initialized!');
+            } else {
+                console.log('opticsBench initialized successfully');
+            }
+        }, 100);
+    </script>
+</body>
+</html>

@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optics Bench v2 - Real Physics</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            cursor: crosshair;
+        }
+        
+        .panel {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .controls {
+            top: 20px;
+            left: 20px;
+            width: 250px;
+        }
+        
+        .info {
+            top: 20px;
+            right: 20px;
+            width: 220px;
+            font-size: 12px;
+        }
+        
+        h3 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+            border-color: #00ff88;
+        }
+        
+        button.active {
+            background: #00ff88;
+            color: #000;
+        }
+        
+        .control-group {
+            margin: 10px 0;
+        }
+        
+        label {
+            display: block;
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .wavelength-display {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 10px;
+            border: 1px solid #444;
+        }
+        
+        .status {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="panel controls">
+        <h3>Optics Bench</h3>
+        
+        <div class="control-group">
+            <label>Light Sources</label>
+            <div class="buttons-grid">
+                <button id="addLaser" class="active">Laser</button>
+                <button id="addPointLight">Point Light</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Optical Elements</label>
+            <div class="buttons-grid">
+                <button id="addMirror">Mirror</button>
+                <button id="addLens">Lens</button>
+                <button id="addPrism">Prism</button>
+                <button id="addGrating">Grating</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Wavelength: <span class="value" id="wavelengthValue">550</span> nm</label>
+            <input type="range" id="wavelength" min="380" max="780" value="550" step="1">
+            <span class="wavelength-display" id="colorDisplay"></span>
+        </div>
+        
+        <div class="control-group">
+            <label>Ray Count: <span class="value" id="rayCountValue">1</span></label>
+            <input type="range" id="rayCount" min="1" max="20" value="1" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>Tools</label>
+            <div class="buttons-grid">
+                <button id="moveMode">Move</button>
+                <button id="rotateMode">Rotate</button>
+                <button id="deleteMode">Delete</button>
+                <button id="clearAll">Clear All</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="panel info">
+        <h3>Information</h3>
+        <div id="measurements">
+            <div>Refractive Index: <span class="value" id="refractiveIndex">1.5168</span></div>
+            <div>Total Rays: <span class="value" id="totalRays">0</span></div>
+            <div>Components: <span class="value" id="componentCount">0</span></div>
+        </div>
+        <hr style="margin: 10px 0; border-color: #333;">
+        <div style="font-size: 11px; color: #888;">
+            • Click to place components<br>
+            • Drag to move, rotate mode to orient<br>
+            • Delete mode to remove<br>
+            • Adjust wavelength for dispersion
+        </div>
+    </div>
+    
+    <div class="status" id="status">Ready - Click to add components</div>
+
+    <script>
+        class OpticsBench {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                this.components = [];
+                this.rays = [];
+                this.mode = 'laser';
+                this.wavelength = 550;
+                this.rayCount = 1;
+                
+                this.selectedComponent = null;
+                this.isDragging = false;
+                this.isRotating = false;
+                this.mousePos = { x: 0, y: 0 };
+                
+                // Refractive indices for different wavelengths (simplified Sellmeier)
+                this.materials = {
+                    air: { n: (λ) => 1.0 },
+                    glass: { 
+                        n: (λ) => {
+                            // BK7 glass approximation
+                            const λ_um = λ / 1000; // Convert nm to μm
+                            return 1.5168 - 0.0043 * (λ_um - 0.5876) + 0.0097 * (λ_um - 0.5876) ** 2;
+                        }
+                    },
+                    water: { n: (λ) => 1.333 - 0.00003 * (λ - 589) }
+                };
+                
+                this.setupControls();
+                this.setupEventListeners();
+                this.updateColorDisplay();
+                this.animate();
+                
+                console.log('OpticsBench v2 initialized');
+            }
+            
+            setupControls() {
+                // Light source buttons
+                document.getElementById('addLaser').onclick = () => this.setMode('laser');
+                document.getElementById('addPointLight').onclick = () => this.setMode('pointLight');
+                
+                // Optical element buttons
+                document.getElementById('addMirror').onclick = () => this.setMode('mirror');
+                document.getElementById('addLens').onclick = () => this.setMode('lens');
+                document.getElementById('addPrism').onclick = () => this.setMode('prism');
+                document.getElementById('addGrating').onclick = () => this.setMode('grating');
+                
+                // Tool buttons
+                document.getElementById('moveMode').onclick = () => this.setMode('move');
+                document.getElementById('rotateMode').onclick = () => this.setMode('rotate');
+                document.getElementById('deleteMode').onclick = () => this.setMode('delete');
+                document.getElementById('clearAll').onclick = () => this.clearAll();
+                
+                // Sliders
+                document.getElementById('wavelength').oninput = (e) => {
+                    this.wavelength = parseInt(e.target.value);
+                    document.getElementById('wavelengthValue').textContent = this.wavelength;
+                    this.updateColorDisplay();
+                    this.calculateRays();
+                };
+                
+                document.getElementById('rayCount').oninput = (e) => {
+                    this.rayCount = parseInt(e.target.value);
+                    document.getElementById('rayCountValue').textContent = this.rayCount;
+                    this.calculateRays();
+                };
+            }
+            
+            setupEventListeners() {
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+            }
+            
+            setMode(mode) {
+                this.mode = mode;
+                document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+                
+                const buttonMap = {
+                    'laser': 'addLaser',
+                    'pointLight': 'addPointLight',
+                    'mirror': 'addMirror',
+                    'lens': 'addLens',
+                    'prism': 'addPrism',
+                    'grating': 'addGrating',
+                    'move': 'moveMode',
+                    'rotate': 'rotateMode',
+                    'delete': 'deleteMode'
+                };
+                
+                if (buttonMap[mode]) {
+                    document.getElementById(buttonMap[mode]).classList.add('active');
+                }
+                
+                this.updateStatus(`Mode: ${mode}`);
+                this.updateCursor();
+            }
+            
+            updateCursor() {
+                switch (this.mode) {
+                    case 'move':
+                        this.canvas.style.cursor = 'move';
+                        break;
+                    case 'rotate':
+                        this.canvas.style.cursor = 'crosshair';
+                        break;
+                    case 'delete':
+                        this.canvas.style.cursor = 'not-allowed';
+                        break;
+                    default:
+                        this.canvas.style.cursor = 'crosshair';
+                }
+            }
+            
+            handleClick(e) {
+                if (this.isDragging || this.isRotating) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                switch (this.mode) {
+                    case 'delete':
+                        this.deleteComponentAt(x, y);
+                        break;
+                    case 'move':
+                    case 'rotate':
+                        // Handled in mousedown
+                        break;
+                    default:
+                        this.addComponent(x, y, this.mode);
+                        break;
+                }
+            }
+            
+            handleMouseDown(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const component = this.getComponentAt(x, y);
+                if (component) {
+                    this.selectedComponent = component;
+                    
+                    if (this.mode === 'move') {
+                        this.isDragging = true;
+                        this.dragOffset = {
+                            x: x - component.x,
+                            y: y - component.y
+                        };
+                    } else if (this.mode === 'rotate') {
+                        this.isRotating = true;
+                    }
+                }
+            }
+            
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (this.isDragging && this.selectedComponent) {
+                    this.selectedComponent.x = x - this.dragOffset.x;
+                    this.selectedComponent.y = y - this.dragOffset.y;
+                    this.calculateRays();
+                } else if (this.isRotating && this.selectedComponent) {
+                    const dx = x - this.selectedComponent.x;
+                    const dy = y - this.selectedComponent.y;
+                    this.selectedComponent.angle = Math.atan2(dy, dx);
+                    this.calculateRays();
+                }
+            }
+            
+            handleMouseUp(e) {
+                this.isDragging = false;
+                this.isRotating = false;
+                this.selectedComponent = null;
+            }
+            
+            addComponent(x, y, type) {
+                const component = {
+                    id: Date.now(),
+                    type: type,
+                    x: x,
+                    y: y,
+                    angle: 0
+                };
+                
+                // Set component-specific properties
+                switch (type) {
+                    case 'laser':
+                    case 'pointLight':
+                        component.wavelength = this.wavelength;
+                        break;
+                    case 'mirror':
+                        component.width = 60;
+                        break;
+                    case 'lens':
+                        component.focalLength = 100;
+                        component.diameter = 50;
+                        break;
+                    case 'prism':
+                        component.size = 60;
+                        component.material = 'glass';
+                        break;
+                    case 'grating':
+                        component.width = 60;
+                        component.linesPerMm = 600;
+                        break;
+                }
+                
+                this.components.push(component);
+                this.calculateRays();
+                this.updateComponentCount();
+                this.updateStatus(`Added ${type}`);
+            }
+            
+            getComponentAt(x, y) {
+                for (let i = this.components.length - 1; i >= 0; i--) {
+                    const comp = this.components[i];
+                    const dist = Math.sqrt((x - comp.x) ** 2 + (y - comp.y) ** 2);
+                    if (dist < 30) {
+                        return comp;
+                    }
+                }
+                return null;
+            }
+            
+            deleteComponentAt(x, y) {
+                const component = this.getComponentAt(x, y);
+                if (component) {
+                    this.components = this.components.filter(c => c.id !== component.id);
+                    this.calculateRays();
+                    this.updateComponentCount();
+                    this.updateStatus(`Deleted ${component.type}`);
+                }
+            }
+            
+            calculateRays() {
+                this.rays = [];
+                
+                // Get all light sources
+                const sources = this.components.filter(c => c.type === 'laser' || c.type === 'pointLight');
+                
+                // Check if we have a prism for dispersion
+                const hasPrism = this.components.some(c => c.type === 'prism');
+                
+                sources.forEach(source => {
+                    if (source.type === 'laser') {
+                        if (hasPrism) {
+                            // Multiple wavelengths for prism dispersion
+                            const wavelengths = [400, 450, 500, 550, 600, 650, 700];
+                            wavelengths.forEach(λ => {
+                                this.traceRay(source.x, source.y, Math.cos(source.angle), Math.sin(source.angle), λ);
+                            });
+                        } else {
+                            // Single wavelength
+                            this.traceRay(source.x, source.y, Math.cos(source.angle), Math.sin(source.angle), this.wavelength);
+                        }
+                    } else if (source.type === 'pointLight') {
+                        // Multiple rays in different directions
+                        const angleStep = (2 * Math.PI) / this.rayCount;
+                        for (let i = 0; i < this.rayCount; i++) {
+                            const angle = i * angleStep;
+                            this.traceRay(source.x, source.y, Math.cos(angle), Math.sin(angle), this.wavelength);
+                        }
+                    }
+                });
+                
+                document.getElementById('totalRays').textContent = this.rays.length;
+            }
+            
+            traceRay(x0, y0, dx, dy, wavelength) {
+                const ray = {
+                    wavelength: wavelength,
+                    color: this.wavelengthToColor(wavelength),
+                    path: [{ x: x0, y: y0 }],
+                    intensity: 1.0
+                };
+                
+                let x = x0, y = y0;
+                let dirX = dx, dirY = dy;
+                const maxBounces = 20;
+                let bounces = 0;
+                
+                while (bounces < maxBounces) {
+                    // Find next intersection
+                    let closestIntersection = null;
+                    let minDistance = Infinity;
+                    
+                    // Check intersection with all components
+                    this.components.forEach(comp => {
+                        if (comp.type === 'laser' || comp.type === 'pointLight') return;
+                        
+                        const intersection = this.getRayComponentIntersection(x, y, dirX, dirY, comp);
+                        if (intersection && intersection.distance > 0.001 && intersection.distance < minDistance) {
+                            minDistance = intersection.distance;
+                            closestIntersection = { ...intersection, component: comp };
+                        }
+                    });
+                    
+                    if (!closestIntersection) {
+                        // Ray continues to edge
+                        const edgeX = dirX > 0 ? this.canvas.width : 0;
+                        const edgeY = dirY > 0 ? this.canvas.height : 0;
+                        const tX = (edgeX - x) / dirX;
+                        const tY = (edgeY - y) / dirY;
+                        const t = Math.min(Math.abs(tX), Math.abs(tY));
+                        
+                        ray.path.push({ x: x + dirX * t, y: y + dirY * t });
+                        break;
+                    }
+                    
+                    // Add intersection point to path
+                    ray.path.push({ x: closestIntersection.x, y: closestIntersection.y });
+                    
+                    // Handle interaction
+                    const result = this.handleRayInteraction(closestIntersection, dirX, dirY, wavelength);
+                    if (!result) break;
+                    
+                    x = closestIntersection.x;
+                    y = closestIntersection.y;
+                    dirX = result.dx;
+                    dirY = result.dy;
+                    ray.intensity *= result.intensity || 1;
+                    
+                    bounces++;
+                }
+                
+                if (ray.path.length > 1) {
+                    this.rays.push(ray);
+                }
+            }
+            
+            getRayComponentIntersection(rayX, rayY, rayDx, rayDy, component) {
+                switch (component.type) {
+                    case 'mirror':
+                        return this.getRayLineIntersection(
+                            rayX, rayY, rayDx, rayDy,
+                            component.x - Math.cos(component.angle) * component.width / 2,
+                            component.y - Math.sin(component.angle) * component.width / 2,
+                            component.x + Math.cos(component.angle) * component.width / 2,
+                            component.y + Math.sin(component.angle) * component.width / 2
+                        );
+                        
+                    case 'lens':
+                        // Simplified - treat as vertical line
+                        return this.getRayLineIntersection(
+                            rayX, rayY, rayDx, rayDy,
+                            component.x, component.y - component.diameter / 2,
+                            component.x, component.y + component.diameter / 2
+                        );
+                        
+                    case 'prism':
+                        // Check all three sides of triangle
+                        const s = component.size;
+                        const cx = component.x;
+                        const cy = component.y;
+                        
+                        // Triangle vertices (equilateral)
+                        const v1 = { x: cx, y: cy - s * 0.577 }; // Top
+                        const v2 = { x: cx - s/2, y: cy + s * 0.289 }; // Bottom left
+                        const v3 = { x: cx + s/2, y: cy + s * 0.289 }; // Bottom right
+                        
+                        const intersections = [
+                            this.getRayLineIntersection(rayX, rayY, rayDx, rayDy, v1.x, v1.y, v2.x, v2.y),
+                            this.getRayLineIntersection(rayX, rayY, rayDx, rayDy, v2.x, v2.y, v3.x, v3.y),
+                            this.getRayLineIntersection(rayX, rayY, rayDx, rayDy, v3.x, v3.y, v1.x, v1.y)
+                        ].filter(i => i !== null);
+                        
+                        return intersections.reduce((closest, current) => 
+                            (!closest || current.distance < closest.distance) ? current : closest, null);
+                        
+                    case 'grating':
+                        return this.getRayLineIntersection(
+                            rayX, rayY, rayDx, rayDy,
+                            component.x - Math.cos(component.angle) * component.width / 2,
+                            component.y - Math.sin(component.angle) * component.width / 2,
+                            component.x + Math.cos(component.angle) * component.width / 2,
+                            component.y + Math.sin(component.angle) * component.width / 2
+                        );
+                }
+                
+                return null;
+            }
+            
+            getRayLineIntersection(rayX, rayY, rayDx, rayDy, x1, y1, x2, y2) {
+                const denominator = (x1 - x2) * (-rayDy) - (y1 - y2) * (-rayDx);
+                if (Math.abs(denominator) < 0.0001) return null;
+                
+                const t = ((x1 - rayX) * (-rayDy) - (y1 - rayY) * (-rayDx)) / denominator;
+                const u = -((x1 - x2) * (y1 - rayY) - (y1 - y2) * (x1 - rayX)) / denominator;
+                
+                if (t >= 0 && t <= 1 && u > 0) {
+                    const intersectionX = x1 + t * (x2 - x1);
+                    const intersectionY = y1 + t * (y2 - y1);
+                    
+                    // Calculate normal (perpendicular to line)
+                    const lineAngle = Math.atan2(y2 - y1, x2 - x1);
+                    const normalAngle = lineAngle + Math.PI / 2;
+                    
+                    return {
+                        x: intersectionX,
+                        y: intersectionY,
+                        distance: u,
+                        normalX: Math.cos(normalAngle),
+                        normalY: Math.sin(normalAngle)
+                    };
+                }
+                
+                return null;
+            }
+            
+            handleRayInteraction(intersection, rayDx, rayDy, wavelength) {
+                const component = intersection.component;
+                
+                switch (component.type) {
+                    case 'mirror':
+                        // Reflection: r = d - 2(d·n)n
+                        const dot = rayDx * intersection.normalX + rayDy * intersection.normalY;
+                        return {
+                            dx: rayDx - 2 * dot * intersection.normalX,
+                            dy: rayDy - 2 * dot * intersection.normalY,
+                            intensity: 0.95 // 95% reflectivity
+                        };
+                        
+                    case 'lens':
+                        // Simplified thin lens - deflect rays toward focal point
+                        const focalPointX = component.x + component.focalLength;
+                        const focalPointY = component.y;
+                        
+                        const toFocalX = focalPointX - intersection.x;
+                        const toFocalY = focalPointY - intersection.y;
+                        const dist = Math.sqrt(toFocalX * toFocalX + toFocalY * toFocalY);
+                        
+                        return {
+                            dx: toFocalX / dist,
+                            dy: toFocalY / dist,
+                            intensity: 0.98 // 2% loss
+                        };
+                        
+                    case 'prism':
+                        // Snell's law: n1*sin(θ1) = n2*sin(θ2)
+                        const n1 = 1.0; // Air
+                        const n2 = this.materials.glass.n(wavelength);
+                        
+                        // Calculate incident angle
+                        const cosTheta1 = -(rayDx * intersection.normalX + rayDy * intersection.normalY);
+                        const sinTheta1 = Math.sqrt(1 - cosTheta1 * cosTheta1);
+                        
+                        // Calculate refracted angle
+                        const sinTheta2 = (n1 / n2) * sinTheta1;
+                        if (sinTheta2 > 1) {
+                            // Total internal reflection
+                            const dot = rayDx * intersection.normalX + rayDy * intersection.normalY;
+                            return {
+                                dx: rayDx - 2 * dot * intersection.normalX,
+                                dy: rayDy - 2 * dot * intersection.normalY,
+                                intensity: 1.0
+                            };
+                        }
+                        
+                        const cosTheta2 = Math.sqrt(1 - sinTheta2 * sinTheta2);
+                        
+                        // Refracted ray direction
+                        const factor = (n1 / n2);
+                        const dx = factor * rayDx + (factor * cosTheta1 - cosTheta2) * intersection.normalX;
+                        const dy = factor * rayDy + (factor * cosTheta1 - cosTheta2) * intersection.normalY;
+                        
+                        // Normalize
+                        const mag = Math.sqrt(dx * dx + dy * dy);
+                        
+                        return {
+                            dx: dx / mag,
+                            dy: dy / mag,
+                            intensity: 0.96 // Fresnel losses approximated
+                        };
+                        
+                    case 'grating':
+                        // Diffraction grating: d*sin(θ) = m*λ
+                        // Simplified - just show first order
+                        const gratingSpacing = 1 / component.linesPerMm; // mm
+                        const diffractionAngle = Math.asin(wavelength * 1e-6 / gratingSpacing);
+                        
+                        // Rotate by diffraction angle
+                        const cos = Math.cos(diffractionAngle);
+                        const sin = Math.sin(diffractionAngle);
+                        
+                        return {
+                            dx: rayDx * cos - rayDy * sin,
+                            dy: rayDx * sin + rayDy * cos,
+                            intensity: 0.3 // Gratings split power among orders
+                        };
+                }
+                
+                return null;
+            }
+            
+            wavelengthToColor(wavelength) {
+                let r, g, b;
+                
+                if (wavelength >= 380 && wavelength < 440) {
+                    r = -(wavelength - 440) / (440 - 380);
+                    g = 0.0;
+                    b = 1.0;
+                } else if (wavelength >= 440 && wavelength < 490) {
+                    r = 0.0;
+                    g = (wavelength - 440) / (490 - 440);
+                    b = 1.0;
+                } else if (wavelength >= 490 && wavelength < 510) {
+                    r = 0.0;
+                    g = 1.0;
+                    b = -(wavelength - 510) / (510 - 490);
+                } else if (wavelength >= 510 && wavelength < 580) {
+                    r = (wavelength - 510) / (580 - 510);
+                    g = 1.0;
+                    b = 0.0;
+                } else if (wavelength >= 580 && wavelength < 645) {
+                    r = 1.0;
+                    g = -(wavelength - 645) / (645 - 580);
+                    b = 0.0;
+                } else if (wavelength >= 645 && wavelength < 781) {
+                    r = 1.0;
+                    g = 0.0;
+                    b = 0.0;
+                } else {
+                    r = 0.0;
+                    g = 0.0;
+                    b = 0.0;
+                }
+                
+                // Intensity correction
+                let factor = 1.0;
+                if (wavelength >= 380 && wavelength < 420) {
+                    factor = 0.3 + 0.7 * (wavelength - 380) / (420 - 380);
+                } else if (wavelength >= 645 && wavelength < 781) {
+                    factor = 0.3 + 0.7 * (780 - wavelength) / (780 - 645);
+                }
+                
+                r = Math.round(255 * r * factor);
+                g = Math.round(255 * g * factor);
+                b = Math.round(255 * b * factor);
+                
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+            
+            updateColorDisplay() {
+                const color = this.wavelengthToColor(this.wavelength);
+                document.getElementById('colorDisplay').style.backgroundColor = color;
+                
+                // Update refractive index
+                const n = this.materials.glass.n(this.wavelength);
+                document.getElementById('refractiveIndex').textContent = n.toFixed(4);
+            }
+            
+            updateComponentCount() {
+                document.getElementById('componentCount').textContent = this.components.length;
+            }
+            
+            updateStatus(message) {
+                document.getElementById('status').textContent = message;
+            }
+            
+            clearAll() {
+                this.components = [];
+                this.rays = [];
+                this.calculateRays();
+                this.updateComponentCount();
+                this.updateStatus('Cleared all components');
+            }
+            
+            render() {
+                // Clear canvas
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw grid
+                this.drawGrid();
+                
+                // Draw rays
+                this.rays.forEach(ray => {
+                    this.ctx.strokeStyle = ray.color;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.globalAlpha = ray.intensity;
+                    
+                    this.ctx.beginPath();
+                    ray.path.forEach((point, i) => {
+                        if (i === 0) {
+                            this.ctx.moveTo(point.x, point.y);
+                        } else {
+                            this.ctx.lineTo(point.x, point.y);
+                        }
+                    });
+                    this.ctx.stroke();
+                    
+                    this.ctx.globalAlpha = 1;
+                });
+                
+                // Draw components
+                this.components.forEach(comp => {
+                    this.drawComponent(comp);
+                });
+                
+                // Highlight selected component
+                if (this.selectedComponent) {
+                    this.ctx.strokeStyle = '#00ff88';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.selectedComponent.x, this.selectedComponent.y, 35, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+                }
+            }
+            
+            drawGrid() {
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                this.ctx.lineWidth = 1;
+                
+                const gridSize = 50;
+                for (let x = 0; x < this.canvas.width; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                
+                for (let y = 0; y < this.canvas.height; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawComponent(comp) {
+                this.ctx.save();
+                this.ctx.translate(comp.x, comp.y);
+                this.ctx.rotate(comp.angle);
+                
+                switch (comp.type) {
+                    case 'laser':
+                        this.drawLaser();
+                        break;
+                    case 'pointLight':
+                        this.drawPointLight();
+                        break;
+                    case 'mirror':
+                        this.drawMirror(comp.width);
+                        break;
+                    case 'lens':
+                        this.drawLens(comp.diameter);
+                        break;
+                    case 'prism':
+                        this.drawPrism(comp.size);
+                        break;
+                    case 'grating':
+                        this.drawGrating(comp.width);
+                        break;
+                }
+                
+                this.ctx.restore();
+            }
+            
+            drawLaser() {
+                // Laser body
+                this.ctx.fillStyle = '#c62828';
+                this.ctx.fillRect(-25, -10, 50, 20);
+                
+                // Output aperture
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(20, -3, 5, 6);
+                
+                // Power LED
+                this.ctx.fillStyle = '#00ff00';
+                this.ctx.beginPath();
+                this.ctx.arc(-15, 0, 3, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Direction indicator
+                this.ctx.strokeStyle = this.wavelengthToColor(this.wavelength);
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.moveTo(25, 0);
+                this.ctx.lineTo(35, 0);
+                this.ctx.stroke();
+            }
+            
+            drawPointLight() {
+                const color = this.wavelengthToColor(this.wavelength);
+                
+                // Glowing effect
+                const gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+                gradient.addColorStop(0, color);
+                gradient.addColorStop(0.5, color + '80');
+                gradient.addColorStop(1, color + '00');
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(-20, -20, 40, 40);
+                
+                // Center
+                this.ctx.fillStyle = '#fff';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 5, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+            
+            drawMirror(width) {
+                // Mirror surface
+                const gradient = this.ctx.createLinearGradient(-width/2, 0, width/2, 0);
+                gradient.addColorStop(0, '#999');
+                gradient.addColorStop(0.5, '#fff');
+                gradient.addColorStop(1, '#999');
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(-width/2, -3, width, 6);
+                
+                // Back
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(-width/2, 3, width, 3);
+            }
+            
+            drawLens(diameter) {
+                this.ctx.strokeStyle = '#4fc3f7';
+                this.ctx.lineWidth = 3;
+                this.ctx.fillStyle = 'rgba(79, 195, 247, 0.2)';
+                
+                // Simplified double-convex lens
+                this.ctx.beginPath();
+                this.ctx.arc(-8, 0, diameter/2, -Math.PI/3, Math.PI/3, false);
+                this.ctx.arc(8, 0, diameter/2, 2*Math.PI/3, 4*Math.PI/3, false);
+                this.ctx.closePath();
+                
+                this.ctx.fill();
+                this.ctx.stroke();
+            }
+            
+            drawPrism(size) {
+                this.ctx.fillStyle = 'rgba(79, 195, 247, 0.3)';
+                this.ctx.strokeStyle = '#4fc3f7';
+                this.ctx.lineWidth = 2;
+                
+                // Equilateral triangle
+                const h = size * Math.sqrt(3) / 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, -h * 2/3);
+                this.ctx.lineTo(-size/2, h * 1/3);
+                this.ctx.lineTo(size/2, h * 1/3);
+                this.ctx.closePath();
+                
+                this.ctx.fill();
+                this.ctx.stroke();
+            }
+            
+            drawGrating(width) {
+                // Grating substrate
+                this.ctx.fillStyle = '#666';
+                this.ctx.fillRect(-width/2, -10, width, 20);
+                
+                // Grating lines
+                this.ctx.strokeStyle = '#ffd700';
+                this.ctx.lineWidth = 1;
+                
+                for (let x = -width/2; x < width/2; x += 3) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, -10);
+                    this.ctx.lineTo(x, 10);
+                    this.ctx.stroke();
+                }
+            }
+            
+            animate() {
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        const optics = new OpticsBench();
+    </script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Optics Test</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+            background: #111;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+        #status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="controls">
+        <button onclick="optics.addLaser()">Add Laser</button>
+        <button onclick="optics.addPrism()">Add Prism</button>
+        <button onclick="optics.clearAll()">Clear</button>
+        <div>
+            Wavelength: <input type="range" id="wavelength" min="400" max="700" value="550" oninput="optics.setWavelength(this.value)">
+            <span id="wavelengthValue">550</span> nm
+        </div>
+    </div>
+    <div id="status">Click "Add Laser" then "Add Prism" to see dispersion</div>
+
+    <script>
+        class SimpleOptics {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                this.laser = null;
+                this.prism = null;
+                this.wavelength = 550;
+                this.rays = [];
+                
+                console.log('SimpleOptics initialized');
+                this.animate();
+            }
+            
+            addLaser() {
+                this.laser = {
+                    x: 100,
+                    y: this.canvas.height / 2,
+                    angle: 0
+                };
+                console.log('Laser added at', this.laser);
+                this.updateStatus('Laser added. Now add a prism.');
+                this.calculateRays();
+            }
+            
+            addPrism() {
+                this.prism = {
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    size: 100
+                };
+                console.log('Prism added at', this.prism);
+                this.updateStatus('Prism added. You should see dispersion!');
+                this.calculateRays();
+            }
+            
+            setWavelength(value) {
+                this.wavelength = parseInt(value);
+                document.getElementById('wavelengthValue').textContent = value;
+                this.calculateRays();
+            }
+            
+            clearAll() {
+                this.laser = null;
+                this.prism = null;
+                this.rays = [];
+                this.updateStatus('Cleared. Add laser and prism again.');
+            }
+            
+            calculateRays() {
+                this.rays = [];
+                
+                if (!this.laser || !this.prism) {
+                    console.log('Need both laser and prism');
+                    return;
+                }
+                
+                // Create rays for different wavelengths to show dispersion
+                const wavelengths = [400, 450, 500, 550, 600, 650, 700];
+                
+                wavelengths.forEach(wavelength => {
+                    // Simple ray from laser to prism
+                    const ray = {
+                        wavelength: wavelength,
+                        color: this.wavelengthToColor(wavelength),
+                        path: []
+                    };
+                    
+                    // Start from laser
+                    ray.path.push({ x: this.laser.x, y: this.laser.y });
+                    
+                    // Hit prism left face
+                    const prismLeftX = this.prism.x - this.prism.size / 2;
+                    ray.path.push({ x: prismLeftX, y: this.prism.y });
+                    
+                    // Calculate refraction angle based on wavelength
+                    // Simplified: more refraction for shorter wavelengths
+                    const n = 1.5 + (700 - wavelength) * 0.0001; // Simple dispersion model
+                    const deviation = (n - 1) * 0.5; // Simplified deviation
+                    
+                    // Exit prism with wavelength-dependent angle
+                    const exitX = this.prism.x + this.prism.size / 2;
+                    const exitY = this.prism.y + (wavelength - 550) * 0.2; // Spread by wavelength
+                    ray.path.push({ x: exitX, y: exitY });
+                    
+                    // Continue after prism
+                    const finalAngle = (wavelength - 550) * 0.001; // Dispersion angle
+                    const finalX = this.canvas.width - 50;
+                    const finalY = exitY + (finalX - exitX) * Math.tan(finalAngle);
+                    ray.path.push({ x: finalX, y: finalY });
+                    
+                    this.rays.push(ray);
+                });
+                
+                console.log('Calculated', this.rays.length, 'rays');
+            }
+            
+            wavelengthToColor(wavelength) {
+                if (wavelength < 450) return '#8B00FF'; // Violet
+                if (wavelength < 485) return '#0000FF'; // Blue
+                if (wavelength < 500) return '#00FFFF'; // Cyan
+                if (wavelength < 565) return '#00FF00'; // Green
+                if (wavelength < 590) return '#FFFF00'; // Yellow
+                if (wavelength < 625) return '#FF7F00'; // Orange
+                return '#FF0000'; // Red
+            }
+            
+            updateStatus(msg) {
+                document.getElementById('status').textContent = msg;
+            }
+            
+            render() {
+                // Clear
+                this.ctx.fillStyle = '#111';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw laser
+                if (this.laser) {
+                    this.ctx.fillStyle = '#ff0000';
+                    this.ctx.fillRect(this.laser.x - 30, this.laser.y - 15, 60, 30);
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.fillText('LASER', this.laser.x - 20, this.laser.y + 4);
+                }
+                
+                // Draw prism
+                if (this.prism) {
+                    this.ctx.strokeStyle = '#00ffff';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    // Equilateral triangle
+                    const h = this.prism.size * Math.sqrt(3) / 2;
+                    this.ctx.moveTo(this.prism.x, this.prism.y - h/2);
+                    this.ctx.lineTo(this.prism.x - this.prism.size/2, this.prism.y + h/2);
+                    this.ctx.lineTo(this.prism.x + this.prism.size/2, this.prism.y + h/2);
+                    this.ctx.closePath();
+                    this.ctx.stroke();
+                    
+                    // Fill with transparency
+                    this.ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+                    this.ctx.fill();
+                }
+                
+                // Draw rays
+                this.rays.forEach(ray => {
+                    this.ctx.strokeStyle = ray.color;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.shadowBlur = 10;
+                    this.ctx.shadowColor = ray.color;
+                    
+                    this.ctx.beginPath();
+                    ray.path.forEach((point, i) => {
+                        if (i === 0) {
+                            this.ctx.moveTo(point.x, point.y);
+                        } else {
+                            this.ctx.lineTo(point.x, point.y);
+                        }
+                    });
+                    this.ctx.stroke();
+                    
+                    this.ctx.shadowBlur = 0;
+                });
+                
+                // Draw wavelength indicator
+                if (this.rays.length > 0) {
+                    const selectedRay = this.rays.find(r => Math.abs(r.wavelength - this.wavelength) < 25);
+                    if (selectedRay) {
+                        this.ctx.strokeStyle = '#fff';
+                        this.ctx.lineWidth = 4;
+                        this.ctx.globalAlpha = 0.5;
+                        this.ctx.beginPath();
+                        selectedRay.path.forEach((point, i) => {
+                            if (i === 0) {
+                                this.ctx.moveTo(point.x, point.y);
+                            } else {
+                                this.ctx.lineTo(point.x, point.y);
+                            }
+                        });
+                        this.ctx.stroke();
+                        this.ctx.globalAlpha = 1;
+                    }
+                }
+            }
+            
+            animate() {
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        const optics = new SimpleOptics();
+    </script>
+</body>
+</html>

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correct Prism Physics</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        canvas {
+            display: block;
+            background: #0a0a0a;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            width: 250px;
+        }
+        
+        h3 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+            border-color: #00ff88;
+        }
+        
+        .control-group {
+            margin: 10px 0;
+        }
+        
+        label {
+            display: block;
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <h3>Prism Physics Demo</h3>
+        
+        <div class="control-group">
+            <button onclick="prism.addLaser()">Add Laser</button>
+            <button onclick="prism.addPrism()">Add Prism</button>
+            <button onclick="prism.clearAll()">Clear All</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Prism Angle: <span class="value" id="angleValue">0</span>°</label>
+            <input type="range" id="prismAngle" min="0" max="360" value="0" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>Show White Light</label>
+            <button onclick="prism.toggleWhiteLight()">Toggle Spectrum</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Prism Material</label>
+            <button onclick="prism.setMaterial('BK7')">BK7 Glass</button>
+            <button onclick="prism.setMaterial('SF11')">SF11 Dense Flint</button>
+            <button onclick="prism.setMaterial('fusedSilica')">Fused Silica</button>
+        </div>
+    </div>
+    
+    <div class="info">
+        <strong>Real Prism Physics:</strong><br>
+        • Each surface normal is calculated correctly<br>
+        • Snell's law applied at each interface<br>
+        • Entry and exit surfaces tracked separately<br>
+        • Wavelength-dependent refractive index<br>
+        • Total internal reflection when critical angle exceeded<br>
+        <br>
+        Current material: <span class="value" id="currentMaterial">BK7</span><br>
+        Refractive index (550nm): <span class="value" id="refractiveIndex">1.5168</span>
+    </div>
+
+    <script>
+        class PrismPhysics {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                this.laser = null;
+                this.prism = null;
+                this.rays = [];
+                this.whiteLight = false;
+                this.currentMaterial = 'BK7';
+                
+                // Material database with Sellmeier coefficients
+                this.materials = {
+                    BK7: {
+                        name: 'BK7 Glass',
+                        B1: 1.03961212, B2: 0.231792344, B3: 1.01046945,
+                        C1: 0.00600069867, C2: 0.0200179144, C3: 103.560653
+                    },
+                    SF11: {
+                        name: 'SF11 Dense Flint',
+                        B1: 1.73759695, B2: 0.313747346, B3: 1.89878101,
+                        C1: 0.013188707, C2: 0.0623068142, C3: 155.23629
+                    },
+                    fusedSilica: {
+                        name: 'Fused Silica',
+                        B1: 0.6961663, B2: 0.4079426, B3: 0.8974794,
+                        C1: 0.0046791, C2: 0.0135120, C3: 97.9340
+                    }
+                };
+                
+                this.setupControls();
+                this.animate();
+            }
+            
+            setupControls() {
+                document.getElementById('prismAngle').oninput = (e) => {
+                    const angle = parseInt(e.target.value);
+                    document.getElementById('angleValue').textContent = angle;
+                    if (this.prism) {
+                        this.prism.rotation = angle * Math.PI / 180;
+                        this.calculateRays();
+                    }
+                };
+            }
+            
+            // Calculate refractive index using Sellmeier equation
+            getRefractiveIndex(wavelengthNm, material) {
+                const mat = this.materials[material];
+                const λ = wavelengthNm / 1000; // Convert to micrometers
+                const λ2 = λ * λ;
+                
+                const n2 = 1 + 
+                    (mat.B1 * λ2) / (λ2 - mat.C1) +
+                    (mat.B2 * λ2) / (λ2 - mat.C2) +
+                    (mat.B3 * λ2) / (λ2 - mat.C3);
+                    
+                return Math.sqrt(n2);
+            }
+            
+            addLaser() {
+                this.laser = {
+                    x: 150,
+                    y: this.canvas.height / 2,
+                    angle: 0
+                };
+                this.calculateRays();
+            }
+            
+            addPrism() {
+                this.prism = {
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    size: 120,
+                    rotation: 0,
+                    apexAngle: 60 * Math.PI / 180 // 60-degree prism
+                };
+                document.getElementById('prismAngle').value = 0;
+                document.getElementById('angleValue').textContent = '0';
+                this.calculateRays();
+            }
+            
+            setMaterial(material) {
+                this.currentMaterial = material;
+                document.getElementById('currentMaterial').textContent = this.materials[material].name;
+                const n = this.getRefractiveIndex(550, material);
+                document.getElementById('refractiveIndex').textContent = n.toFixed(4);
+                this.calculateRays();
+            }
+            
+            toggleWhiteLight() {
+                this.whiteLight = !this.whiteLight;
+                this.calculateRays();
+            }
+            
+            clearAll() {
+                this.laser = null;
+                this.prism = null;
+                this.rays = [];
+            }
+            
+            calculateRays() {
+                this.rays = [];
+                
+                if (!this.laser || !this.prism) return;
+                
+                const wavelengths = this.whiteLight ? 
+                    [400, 430, 460, 490, 520, 550, 580, 610, 640, 670, 700] : [550];
+                
+                wavelengths.forEach(wavelength => {
+                    this.traceRay(wavelength);
+                });
+            }
+            
+            traceRay(wavelength) {
+                const ray = {
+                    wavelength: wavelength,
+                    color: this.wavelengthToColor(wavelength),
+                    path: [],
+                    normals: [] // Store normals for visualization
+                };
+                
+                // Start from laser
+                let x = this.laser.x;
+                let y = this.laser.y;
+                let dx = Math.cos(this.laser.angle);
+                let dy = Math.sin(this.laser.angle);
+                
+                ray.path.push({ x, y });
+                
+                // Find prism entry point
+                const entry = this.findPrismIntersection(x, y, dx, dy, true);
+                if (!entry) {
+                    // Ray misses prism
+                    ray.path.push({ x: this.canvas.width, y: y });
+                    this.rays.push(ray);
+                    return;
+                }
+                
+                ray.path.push({ x: entry.x, y: entry.y });
+                ray.normals.push({ x: entry.x, y: entry.y, nx: entry.nx, ny: entry.ny });
+                
+                // Apply Snell's law at entry
+                const n1 = 1.0; // Air
+                const n2 = this.getRefractiveIndex(wavelength, this.currentMaterial);
+                
+                const refracted1 = this.refract(dx, dy, entry.nx, entry.ny, n1, n2);
+                if (!refracted1) {
+                    // Total internal reflection (shouldn't happen at entry from air)
+                    return;
+                }
+                
+                // Travel through prism
+                x = entry.x + refracted1.dx * 2;
+                y = entry.y + refracted1.dy * 2;
+                dx = refracted1.dx;
+                dy = refracted1.dy;
+                
+                // Find prism exit point
+                const exit = this.findPrismIntersection(x, y, dx, dy, false);
+                if (!exit) {
+                    // Ray doesn't exit (shouldn't happen with proper geometry)
+                    return;
+                }
+                
+                ray.path.push({ x: exit.x, y: exit.y });
+                ray.normals.push({ x: exit.x, y: exit.y, nx: exit.nx, ny: exit.ny });
+                
+                // Apply Snell's law at exit
+                const refracted2 = this.refract(dx, dy, exit.nx, exit.ny, n2, n1);
+                if (!refracted2) {
+                    // Total internal reflection
+                    const reflected = this.reflect(dx, dy, exit.nx, exit.ny);
+                    // For simplicity, we'll stop here, but in reality it would bounce inside
+                    ray.path.push({ 
+                        x: exit.x + reflected.dx * 50, 
+                        y: exit.y + reflected.dy * 50 
+                    });
+                } else {
+                    // Continue ray after prism
+                    ray.path.push({ 
+                        x: exit.x + refracted2.dx * 300, 
+                        y: exit.y + refracted2.dy * 300 
+                    });
+                }
+                
+                this.rays.push(ray);
+            }
+            
+            findPrismIntersection(x, y, dx, dy, isEntry) {
+                // Get prism vertices
+                const vertices = this.getPrismVertices();
+                
+                // Check intersection with each edge
+                const edges = [
+                    { p1: vertices[0], p2: vertices[1] }, // Top to bottom-left
+                    { p1: vertices[1], p2: vertices[2] }, // Bottom edge
+                    { p1: vertices[2], p2: vertices[0] }  // Bottom-right to top
+                ];
+                
+                let closestIntersection = null;
+                let minDistance = Infinity;
+                
+                edges.forEach((edge, index) => {
+                    const intersection = this.rayLineIntersection(
+                        x, y, dx, dy,
+                        edge.p1.x, edge.p1.y, edge.p2.x, edge.p2.y
+                    );
+                    
+                    if (intersection && intersection.t > 0.001) {
+                        const distance = intersection.t;
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            
+                            // Calculate outward normal for this edge
+                            const edgeDx = edge.p2.x - edge.p1.x;
+                            const edgeDy = edge.p2.y - edge.p1.y;
+                            const edgeLength = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+                            
+                            // Normal is perpendicular to edge (rotate 90 degrees)
+                            let nx = -edgeDy / edgeLength;
+                            let ny = edgeDx / edgeLength;
+                            
+                            // Ensure normal points outward
+                            const centerX = (vertices[0].x + vertices[1].x + vertices[2].x) / 3;
+                            const centerY = (vertices[0].y + vertices[1].y + vertices[2].y) / 3;
+                            const toCenterX = centerX - intersection.x;
+                            const toCenterY = centerY - intersection.y;
+                            
+                            if (nx * toCenterX + ny * toCenterY > 0) {
+                                nx = -nx;
+                                ny = -ny;
+                            }
+                            
+                            closestIntersection = {
+                                x: intersection.x,
+                                y: intersection.y,
+                                nx: nx,
+                                ny: ny,
+                                edgeIndex: index
+                            };
+                        }
+                    }
+                });
+                
+                return closestIntersection;
+            }
+            
+            getPrismVertices() {
+                // Equilateral triangle with rotation
+                const cos = Math.cos(this.prism.rotation);
+                const sin = Math.sin(this.prism.rotation);
+                const s = this.prism.size;
+                const h = s * Math.sqrt(3) / 2;
+                
+                // Vertices before rotation (relative to center)
+                const v1 = { x: 0, y: -h * 2/3 };      // Top
+                const v2 = { x: -s/2, y: h * 1/3 };    // Bottom-left
+                const v3 = { x: s/2, y: h * 1/3 };     // Bottom-right
+                
+                // Apply rotation and translation
+                return [
+                    {
+                        x: this.prism.x + v1.x * cos - v1.y * sin,
+                        y: this.prism.y + v1.x * sin + v1.y * cos
+                    },
+                    {
+                        x: this.prism.x + v2.x * cos - v2.y * sin,
+                        y: this.prism.y + v2.x * sin + v2.y * cos
+                    },
+                    {
+                        x: this.prism.x + v3.x * cos - v3.y * sin,
+                        y: this.prism.y + v3.x * sin + v3.y * cos
+                    }
+                ];
+            }
+            
+            rayLineIntersection(rayX, rayY, rayDx, rayDy, x1, y1, x2, y2) {
+                const denominator = (x2 - x1) * (-rayDy) - (y2 - y1) * (-rayDx);
+                if (Math.abs(denominator) < 0.00001) return null;
+                
+                const t1 = ((x1 - rayX) * (-rayDy) - (y1 - rayY) * (-rayDx)) / denominator;
+                const t2 = ((x1 - rayX) * (y2 - y1) - (y1 - rayY) * (x2 - x1)) / denominator;
+                
+                if (t1 >= 0 && t1 <= 1 && t2 > 0) {
+                    return {
+                        x: x1 + t1 * (x2 - x1),
+                        y: y1 + t1 * (y2 - y1),
+                        t: t2
+                    };
+                }
+                
+                return null;
+            }
+            
+            refract(dx, dy, nx, ny, n1, n2) {
+                // Normalize vectors
+                const rayMag = Math.sqrt(dx * dx + dy * dy);
+                dx /= rayMag;
+                dy /= rayMag;
+                
+                // Calculate incident angle
+                const cosI = -(dx * nx + dy * ny);
+                const sinI = Math.sqrt(1 - cosI * cosI);
+                
+                // Check for total internal reflection
+                const sinT = (n1 / n2) * sinI;
+                if (sinT > 1) {
+                    return null; // Total internal reflection
+                }
+                
+                const cosT = Math.sqrt(1 - sinT * sinT);
+                
+                // Calculate refracted direction
+                const factor = n1 / n2;
+                const newDx = factor * dx + (factor * cosI - cosT) * nx;
+                const newDy = factor * dy + (factor * cosI - cosT) * ny;
+                
+                // Normalize
+                const mag = Math.sqrt(newDx * newDx + newDy * newDy);
+                
+                return {
+                    dx: newDx / mag,
+                    dy: newDy / mag
+                };
+            }
+            
+            reflect(dx, dy, nx, ny) {
+                const dot = dx * nx + dy * ny;
+                return {
+                    dx: dx - 2 * dot * nx,
+                    dy: dy - 2 * dot * ny
+                };
+            }
+            
+            wavelengthToColor(wavelength) {
+                let r, g, b;
+                
+                if (wavelength >= 380 && wavelength < 440) {
+                    r = -(wavelength - 440) / (440 - 380);
+                    g = 0.0;
+                    b = 1.0;
+                } else if (wavelength >= 440 && wavelength < 490) {
+                    r = 0.0;
+                    g = (wavelength - 440) / (490 - 440);
+                    b = 1.0;
+                } else if (wavelength >= 490 && wavelength < 510) {
+                    r = 0.0;
+                    g = 1.0;
+                    b = -(wavelength - 510) / (510 - 490);
+                } else if (wavelength >= 510 && wavelength < 580) {
+                    r = (wavelength - 510) / (580 - 510);
+                    g = 1.0;
+                    b = 0.0;
+                } else if (wavelength >= 580 && wavelength < 645) {
+                    r = 1.0;
+                    g = -(wavelength - 645) / (645 - 580);
+                    b = 0.0;
+                } else if (wavelength >= 645 && wavelength < 781) {
+                    r = 1.0;
+                    g = 0.0;
+                    b = 0.0;
+                } else {
+                    r = 0.0;
+                    g = 0.0;
+                    b = 0.0;
+                }
+                
+                return `rgb(${Math.round(255 * r)}, ${Math.round(255 * g)}, ${Math.round(255 * b)})`;
+            }
+            
+            render() {
+                // Clear
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw laser
+                if (this.laser) {
+                    this.ctx.save();
+                    this.ctx.translate(this.laser.x, this.laser.y);
+                    this.ctx.rotate(this.laser.angle);
+                    
+                    this.ctx.fillStyle = '#c62828';
+                    this.ctx.fillRect(-30, -15, 60, 30);
+                    
+                    this.ctx.fillStyle = '#000';
+                    this.ctx.fillRect(25, -4, 8, 8);
+                    
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('LASER', 0, 4);
+                    
+                    this.ctx.restore();
+                }
+                
+                // Draw prism
+                if (this.prism) {
+                    const vertices = this.getPrismVertices();
+                    
+                    // Fill
+                    this.ctx.fillStyle = 'rgba(79, 195, 247, 0.3)';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(vertices[0].x, vertices[0].y);
+                    this.ctx.lineTo(vertices[1].x, vertices[1].y);
+                    this.ctx.lineTo(vertices[2].x, vertices[2].y);
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                    
+                    // Outline
+                    this.ctx.strokeStyle = '#4fc3f7';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+                
+                // Draw rays
+                this.rays.forEach(ray => {
+                    this.ctx.strokeStyle = ray.color;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.shadowBlur = 10;
+                    this.ctx.shadowColor = ray.color;
+                    
+                    this.ctx.beginPath();
+                    ray.path.forEach((point, i) => {
+                        if (i === 0) {
+                            this.ctx.moveTo(point.x, point.y);
+                        } else {
+                            this.ctx.lineTo(point.x, point.y);
+                        }
+                    });
+                    this.ctx.stroke();
+                    
+                    this.ctx.shadowBlur = 0;
+                    
+                    // Draw normals (for debugging)
+                    if (false) { // Set to true to see normals
+                        this.ctx.strokeStyle = '#ff0';
+                        this.ctx.lineWidth = 1;
+                        ray.normals.forEach(normal => {
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(normal.x, normal.y);
+                            this.ctx.lineTo(normal.x + normal.nx * 30, normal.y + normal.ny * 30);
+                            this.ctx.stroke();
+                        });
+                    }
+                });
+            }
+            
+            animate() {
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        const prism = new PrismPhysics();
+    </script>
+</body>
+</html>

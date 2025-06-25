@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correct Grating Physics</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        canvas {
+            display: block;
+            background: #0a0a0a;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            width: 250px;
+        }
+        
+        h3 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+            border-color: #00ff88;
+        }
+        
+        .control-group {
+            margin: 10px 0;
+        }
+        
+        label {
+            display: block;
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <h3>Grating Physics Demo</h3>
+        
+        <div class="control-group">
+            <button onclick="grating.addLaser()">Add Laser</button>
+            <button onclick="grating.addGrating()">Add Grating</button>
+            <button onclick="grating.clearAll()">Clear All</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Grating Angle: <span class="value" id="angleValue">0</span>°</label>
+            <input type="range" id="gratingAngle" min="0" max="360" value="0" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>Wavelength: <span class="value" id="wavelengthValue">532</span> nm</label>
+            <input type="range" id="wavelength" min="400" max="700" value="532" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>Lines per mm: <span class="value" id="linesValue">600</span></label>
+            <input type="range" id="linesPerMm" min="100" max="1800" value="600" step="100">
+        </div>
+    </div>
+    
+    <div class="info">
+        <strong>Real Grating Physics:</strong><br>
+        • Diffraction orders calculated from grating equation<br>
+        • d·sin(θ) = m·λ where m = 0, ±1, ±2, ...<br>
+        • Proper angle-dependent diffraction<br>
+        • Single wavelength produces multiple orders<br>
+        • No rainbow from monochromatic light!<br>
+        <br>
+        Grating period: <span class="value" id="gratingPeriod">1.67</span> μm<br>
+        Max diffraction order: <span class="value" id="maxOrder">3</span>
+    </div>
+
+    <script>
+        class GratingPhysics {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                this.laser = null;
+                this.grating = null;
+                this.orders = [];
+                this.wavelength = 532; // nm
+                this.linesPerMm = 600;
+                
+                this.setupControls();
+                this.animate();
+            }
+            
+            setupControls() {
+                document.getElementById('gratingAngle').oninput = (e) => {
+                    const angle = parseInt(e.target.value);
+                    document.getElementById('angleValue').textContent = angle;
+                    if (this.grating) {
+                        this.grating.rotation = angle * Math.PI / 180;
+                        this.calculateDiffractionOrders();
+                    }
+                };
+                
+                document.getElementById('wavelength').oninput = (e) => {
+                    this.wavelength = parseInt(e.target.value);
+                    document.getElementById('wavelengthValue').textContent = this.wavelength;
+                    this.calculateDiffractionOrders();
+                };
+                
+                document.getElementById('linesPerMm').oninput = (e) => {
+                    this.linesPerMm = parseInt(e.target.value);
+                    document.getElementById('linesValue').textContent = this.linesPerMm;
+                    this.updateGratingInfo();
+                    this.calculateDiffractionOrders();
+                };
+            }
+            
+            updateGratingInfo() {
+                const period = 1000 / this.linesPerMm; // μm
+                document.getElementById('gratingPeriod').textContent = period.toFixed(2);
+                
+                // Maximum diffraction order
+                const maxOrder = Math.floor(period * 1000 / this.wavelength);
+                document.getElementById('maxOrder').textContent = maxOrder;
+            }
+            
+            addLaser() {
+                this.laser = {
+                    x: 150,
+                    y: this.canvas.height / 2,
+                    angle: 0
+                };
+                this.calculateDiffractionOrders();
+            }
+            
+            addGrating() {
+                this.grating = {
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    width: 20,
+                    height: 200,
+                    rotation: 0
+                };
+                document.getElementById('gratingAngle').value = 0;
+                document.getElementById('angleValue').textContent = '0';
+                this.updateGratingInfo();
+                this.calculateDiffractionOrders();
+            }
+            
+            clearAll() {
+                this.laser = null;
+                this.grating = null;
+                this.orders = [];
+            }
+            
+            calculateDiffractionOrders() {
+                this.orders = [];
+                
+                if (!this.laser || !this.grating) return;
+                
+                // Grating equation: d·sin(θ) = m·λ
+                // where d is grating period, θ is diffraction angle, m is order, λ is wavelength
+                
+                const d = 1000 / this.linesPerMm; // Grating period in μm
+                const λ = this.wavelength / 1000; // Wavelength in μm
+                
+                // Calculate incident ray direction
+                const incidentDx = Math.cos(this.laser.angle);
+                const incidentDy = Math.sin(this.laser.angle);
+                
+                // Find intersection with grating
+                const intersection = this.findGratingIntersection(
+                    this.laser.x, this.laser.y, 
+                    incidentDx, incidentDy
+                );
+                
+                if (!intersection) return;
+                
+                // Calculate incident angle relative to grating normal
+                const incidentAngle = Math.atan2(incidentDy, incidentDx);
+                const gratingNormalAngle = this.grating.rotation - Math.PI/2;
+                const θi = incidentAngle - gratingNormalAngle;
+                
+                // Calculate diffraction orders
+                const maxOrder = Math.floor(d / λ);
+                
+                for (let m = -maxOrder; m <= maxOrder; m++) {
+                    // Calculate diffraction angle for order m
+                    const sinθd = (m * λ / d) + Math.sin(θi);
+                    
+                    // Check if this order is physically possible
+                    if (Math.abs(sinθd) <= 1) {
+                        const θd = Math.asin(sinθd);
+                        
+                        // Convert back to global coordinates
+                        const diffractedAngle = θd + gratingNormalAngle;
+                        const dx = Math.cos(diffractedAngle);
+                        const dy = Math.sin(diffractedAngle);
+                        
+                        // Calculate efficiency (simplified - would use rigorous coupled wave analysis in reality)
+                        let efficiency;
+                        if (m === 0) {
+                            efficiency = 0.1; // Zero order (straight through)
+                        } else if (Math.abs(m) === 1) {
+                            efficiency = 0.4; // First orders are typically strongest
+                        } else {
+                            efficiency = 0.2 / Math.abs(m); // Higher orders are weaker
+                        }
+                        
+                        this.orders.push({
+                            order: m,
+                            x: intersection.x,
+                            y: intersection.y,
+                            dx: dx,
+                            dy: dy,
+                            efficiency: efficiency,
+                            angle: diffractedAngle
+                        });
+                    }
+                }
+            }
+            
+            findGratingIntersection(x, y, dx, dy) {
+                if (!this.grating) return null;
+                
+                // Get grating corners with rotation
+                const cos = Math.cos(this.grating.rotation);
+                const sin = Math.sin(this.grating.rotation);
+                const hw = this.grating.width / 2;
+                const hh = this.grating.height / 2;
+                
+                // Grating is a vertical line that can rotate
+                const topX = this.grating.x - sin * hh;
+                const topY = this.grating.y - cos * hh;
+                const bottomX = this.grating.x + sin * hh;
+                const bottomY = this.grating.y + cos * hh;
+                
+                // Ray-line intersection
+                const denominator = (bottomX - topX) * (-dy) - (bottomY - topY) * (-dx);
+                if (Math.abs(denominator) < 0.00001) return null;
+                
+                const t1 = ((topX - x) * (-dy) - (topY - y) * (-dx)) / denominator;
+                const t2 = ((topX - x) * (bottomY - topY) - (topY - y) * (bottomX - topX)) / denominator;
+                
+                if (t1 >= 0 && t1 <= 1 && t2 > 0) {
+                    return {
+                        x: topX + t1 * (bottomX - topX),
+                        y: topY + t1 * (bottomY - topY),
+                        t: t2
+                    };
+                }
+                
+                return null;
+            }
+            
+            wavelengthToColor(wavelength) {
+                let r, g, b;
+                
+                if (wavelength >= 380 && wavelength < 440) {
+                    r = -(wavelength - 440) / (440 - 380);
+                    g = 0.0;
+                    b = 1.0;
+                } else if (wavelength >= 440 && wavelength < 490) {
+                    r = 0.0;
+                    g = (wavelength - 440) / (490 - 440);
+                    b = 1.0;
+                } else if (wavelength >= 490 && wavelength < 510) {
+                    r = 0.0;
+                    g = 1.0;
+                    b = -(wavelength - 510) / (510 - 490);
+                } else if (wavelength >= 510 && wavelength < 580) {
+                    r = (wavelength - 510) / (580 - 510);
+                    g = 1.0;
+                    b = 0.0;
+                } else if (wavelength >= 580 && wavelength < 645) {
+                    r = 1.0;
+                    g = -(wavelength - 645) / (645 - 580);
+                    b = 0.0;
+                } else if (wavelength >= 645 && wavelength < 781) {
+                    r = 1.0;
+                    g = 0.0;
+                    b = 0.0;
+                } else {
+                    r = 0.0;
+                    g = 0.0;
+                    b = 0.0;
+                }
+                
+                return `rgb(${Math.round(255 * r)}, ${Math.round(255 * g)}, ${Math.round(255 * b)})`;
+            }
+            
+            render() {
+                // Clear
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw laser
+                if (this.laser) {
+                    this.ctx.save();
+                    this.ctx.translate(this.laser.x, this.laser.y);
+                    this.ctx.rotate(this.laser.angle);
+                    
+                    this.ctx.fillStyle = '#c62828';
+                    this.ctx.fillRect(-30, -15, 60, 30);
+                    
+                    this.ctx.fillStyle = '#000';
+                    this.ctx.fillRect(25, -4, 8, 8);
+                    
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('LASER', 0, 4);
+                    
+                    this.ctx.restore();
+                }
+                
+                // Draw incident ray
+                if (this.laser && this.grating) {
+                    const dx = Math.cos(this.laser.angle);
+                    const dy = Math.sin(this.laser.angle);
+                    const intersection = this.findGratingIntersection(
+                        this.laser.x, this.laser.y, dx, dy
+                    );
+                    
+                    if (intersection) {
+                        this.ctx.strokeStyle = this.wavelengthToColor(this.wavelength);
+                        this.ctx.lineWidth = 2;
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.shadowColor = this.ctx.strokeStyle;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.laser.x, this.laser.y);
+                        this.ctx.lineTo(intersection.x, intersection.y);
+                        this.ctx.stroke();
+                        
+                        this.ctx.shadowBlur = 0;
+                    }
+                }
+                
+                // Draw grating
+                if (this.grating) {
+                    this.ctx.save();
+                    this.ctx.translate(this.grating.x, this.grating.y);
+                    this.ctx.rotate(this.grating.rotation);
+                    
+                    // Draw grating lines
+                    const numLines = 20;
+                    const lineSpacing = this.grating.height / numLines;
+                    
+                    this.ctx.strokeStyle = '#ffd700';
+                    this.ctx.lineWidth = 1;
+                    
+                    for (let i = 0; i < numLines; i++) {
+                        const y = -this.grating.height/2 + i * lineSpacing;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(-this.grating.width/2, y);
+                        this.ctx.lineTo(this.grating.width/2, y);
+                        this.ctx.stroke();
+                    }
+                    
+                    // Draw grating outline
+                    this.ctx.strokeStyle = '#ffd700';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.strokeRect(
+                        -this.grating.width/2, 
+                        -this.grating.height/2, 
+                        this.grating.width, 
+                        this.grating.height
+                    );
+                    
+                    this.ctx.restore();
+                }
+                
+                // Draw diffraction orders
+                this.orders.forEach(order => {
+                    const intensity = order.efficiency;
+                    this.ctx.strokeStyle = this.wavelengthToColor(this.wavelength);
+                    this.ctx.lineWidth = 2 * intensity;
+                    this.ctx.globalAlpha = 0.5 + 0.5 * intensity;
+                    this.ctx.shadowBlur = 10 * intensity;
+                    this.ctx.shadowColor = this.ctx.strokeStyle;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(order.x, order.y);
+                    this.ctx.lineTo(
+                        order.x + order.dx * 400,
+                        order.y + order.dy * 400
+                    );
+                    this.ctx.stroke();
+                    
+                    // Label the order
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '10px Arial';
+                    this.ctx.shadowBlur = 0;
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.fillText(
+                        `m=${order.order}`,
+                        order.x + order.dx * 100,
+                        order.y + order.dy * 100
+                    );
+                });
+                
+                this.ctx.globalAlpha = 1;
+                this.ctx.shadowBlur = 0;
+            }
+            
+            animate() {
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        const grating = new GratingPhysics();
+    </script>
+</body>
+</html>
