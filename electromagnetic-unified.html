@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Electromagnetic Reality Engine - PhizzySim</title>
+    <link rel="stylesheet" href="unified-physics-engine.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas {
+            display: block;
+            background: radial-gradient(circle at center, #1a1a2e, #0a0a0a);
+            cursor: crosshair;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+            z-index: 100;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ffff;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.3);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #4ecdc4, #45b7d1);
+            box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+        }
+
+        .charge-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .reality-engine-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 15px;
+            border: 2px solid #ffd700;
+            backdrop-filter: blur(15px);
+            z-index: 150;
+        }
+
+        .reality-engine-toggle button {
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            color: #000;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .math-overlay-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        .floating-equation {
+            pointer-events: all;
+        }
+
+        /* Enhanced visual effects */
+        .field-line {
+            filter: drop-shadow(0 0 3px currentColor);
+        }
+
+        .charge-glow {
+            filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 20px currentColor);
+        }
+
+        /* Navigation */
+        .nav-home {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            color: #4ecdc4;
+            text-decoration: none;
+            font-weight: bold;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <div class="title">⚡ EM Reality Engine</div>
+        
+        <div class="control-group">
+            <label>Mode:</label>
+            <div class="charge-controls">
+                <button id="addPositive" class="active">Add +</button>
+                <button id="addNegative">Add -</button>
+                <button id="addParticle">Add Test</button>
+                <button id="dragMode">Drag</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Visualization:</label>
+            <button id="toggleField">Field Lines: ON</button>
+            <button id="toggleParticles">Particles: ON</button>
+            <button id="clearAll">Clear All</button>
+        </div>
+
+        <div class="control-group">
+            <label>Physics:</label>
+            <button id="pausePlay">Pause</button>
+            <button id="resetSim">Reset</button>
+        </div>
+    </div>
+
+    <div class="reality-engine-toggle">
+        <button id="toggleRealityEngine">🧮 Enable Reality Engine</button>
+        <button id="toggleMathDNA">🧬 Math DNA</button>
+        <button id="launchBridges">🌉 Bridges</button>
+    </div>
+
+    <div class="math-overlay-container" id="mathOverlay"></div>
+
+    <a href="physics-simulator.html" class="nav-home">← Back to Home</a>
+
+    <script src="unified-physics-engine.js"></script>
+    <script>
+        class EMRealityEngine extends EMFieldPlayground {
+            constructor() {
+                super();
+                
+                // Initialize the Unified Physics Engine
+                this.unifiedEngine = new UnifiedPhysicsEngine();
+                this.realityEngineActive = false;
+                this.mathDNAActive = false;
+                this.bridgesActive = false;
+                
+                // Connect to the unified engine
+                this.unifiedEngine.connectToSimulator(this, 'electromagnetic');
+                
+                this.setupRealityControls();
+                this.createInitialEquations();
+            }
+            
+            setupRealityControls() {
+                document.getElementById('toggleRealityEngine').onclick = () => {
+                    this.realityEngineActive = !this.realityEngineActive;
+                    this.toggleRealityEngine();
+                };
+                
+                document.getElementById('toggleMathDNA').onclick = () => {
+                    this.mathDNAActive = !this.mathDNAActive;
+                    this.toggleMathDNA();
+                };
+                
+                document.getElementById('launchBridges').onclick = () => {
+                    this.bridgesActive = !this.bridgesActive;
+                    this.launchBridges();
+                };
+            }
+            
+            toggleRealityEngine() {
+                const overlay = document.getElementById('mathOverlay');
+                const button = document.getElementById('toggleRealityEngine');
+                
+                if (this.realityEngineActive) {
+                    // Show floating equations
+                    this.showFloatingEquations();
+                    this.showAnalysisPanel();
+                    this.showInsightStream();
+                    
+                    button.textContent = '🧮 Disable Reality Engine';
+                    button.style.background = 'linear-gradient(45deg, #ff6b6b, #e74c3c)';
+                    
+                    // Add live equation updates
+                    this.startLiveEquationUpdates();
+                    
+                } else {
+                    // Hide all overlays
+                    overlay.innerHTML = '';
+                    this.hideAnalysisPanel();
+                    this.hideInsightStream();
+                    
+                    button.textContent = '🧮 Enable Reality Engine';
+                    button.style.background = 'linear-gradient(45deg, #ffd700, #ffed4e)';
+                    
+                    this.stopLiveEquationUpdates();
+                }
+            }
+            
+            createInitialEquations() {
+                // Create fundamental electromagnetic equations
+                const equations = [
+                    {
+                        name: "Coulomb's Law",
+                        formula: "F = k(q₁q₂)/r²",
+                        variables: ['F', 'q1', 'q2', 'r', 'k'],
+                        position: { x: 400, y: 100 }
+                    },
+                    {
+                        name: "Electric Field",
+                        formula: "E = F/q = kQ/r²",
+                        variables: ['E', 'F', 'q', 'Q', 'r', 'k'],
+                        position: { x: 400, y: 280 }
+                    },
+                    {
+                        name: "Electric Potential",
+                        formula: "V = kQ/r",
+                        variables: ['V', 'Q', 'r', 'k'],
+                        position: { x: 700, y: 100 }
+                    },
+                    {
+                        name: "Field Energy Density",
+                        formula: "u = ½ε₀E²",
+                        variables: ['u', 'ε0', 'E'],
+                        position: { x: 700, y: 280 }
+                    }
+                ];
+                
+                this.equationElements = equations.map(eq => 
+                    this.unifiedEngine.equationEngine.createFloatingEquation(eq, eq.position, this)
+                );
+            }
+            
+            showFloatingEquations() {
+                const overlay = document.getElementById('mathOverlay');
+                overlay.innerHTML = '';
+                
+                this.equationElements.forEach(element => {
+                    overlay.appendChild(element);
+                    element.classList.add('equation-glow');
+                });
+            }
+            
+            showAnalysisPanel() {
+                if (document.querySelector('.analysis-panel')) return;
+                
+                const panel = this.unifiedEngine.analysisEngine.createAnalysisPanel();
+                document.body.appendChild(panel);
+                
+                // Add live graphs
+                this.createLiveGraphs(panel);
+            }
+            
+            createLiveGraphs(panel) {
+                const phaseSpace = panel.querySelector('#phase-space');
+                const energyAnalysis = panel.querySelector('#energy-analysis');
+                
+                // Create canvas for phase space
+                const phaseCanvas = document.createElement('canvas');
+                phaseCanvas.width = 280;
+                phaseCanvas.height = 120;
+                phaseSpace.appendChild(phaseCanvas);
+                
+                // Create canvas for energy analysis
+                const energyCanvas = document.createElement('canvas');
+                energyCanvas.width = 280;
+                energyCanvas.height = 120;
+                energyAnalysis.appendChild(energyCanvas);
+                
+                this.phaseCanvas = phaseCanvas;
+                this.energyCanvas = energyCanvas;
+            }
+            
+            showInsightStream() {
+                if (document.querySelector('.insight-stream')) return;
+                
+                const stream = this.unifiedEngine.insightEngine.createInsightStream();
+                document.body.appendChild(stream);
+                
+                // Add initial insights
+                this.addInsight("⚡ Welcome to the Electromagnetic Reality Engine!");
+                this.addInsight("🔬 Watch how equations come alive as you interact with charges");
+                
+                setTimeout(() => {
+                    this.addInsight("💡 Try dragging variables in the floating equations to control the simulation");
+                }, 3000);
+            }
+            
+            addInsight(text) {
+                const stream = document.querySelector('.insight-stream .insight-content');
+                if (!stream) return;
+                
+                const insight = document.createElement('div');
+                insight.className = 'insight-item';
+                insight.textContent = text;
+                stream.appendChild(insight);
+                
+                // Auto-scroll
+                stream.scrollTop = stream.scrollHeight;
+                
+                // Remove old insights (keep max 5)
+                while (stream.children.length > 5) {
+                    stream.removeChild(stream.firstChild);
+                }
+            }
+            
+            startLiveEquationUpdates() {
+                this.equationUpdateInterval = setInterval(() => {
+                    this.updateEquationValues();
+                    this.updateGraphs();
+                    this.generateContextualInsights();
+                }, 100);
+            }
+            
+            updateEquationValues() {
+                if (!this.realityEngineActive) return;
+                
+                // Calculate current electromagnetic values
+                const totalCharges = this.charges.length;
+                const totalParticles = this.testParticles.length;
+                
+                if (totalCharges === 0) return;
+                
+                // Sample field strength at center
+                const centerField = this.getElectricField(this.canvas.width/2, this.canvas.height/2);
+                const fieldMagnitude = Math.sqrt(centerField.Ex ** 2 + centerField.Ey ** 2);
+                
+                // Update equation variables
+                this.updateVariableDisplay('E', fieldMagnitude.toExponential(2));
+                this.updateVariableDisplay('k', '8.99e9');
+                this.updateVariableDisplay('q1', totalCharges > 0 ? this.charges[0].charge.toFixed(1) : '--');
+                this.updateVariableDisplay('q2', totalCharges > 1 ? this.charges[1].charge.toFixed(1) : '--');
+                
+                if (totalCharges >= 2) {
+                    const r = Math.sqrt(
+                        (this.charges[0].x - this.charges[1].x) ** 2 + 
+                        (this.charges[0].y - this.charges[1].y) ** 2
+                    ) / 100; // Convert to meters
+                    this.updateVariableDisplay('r', r.toFixed(3));
+                    
+                    // Calculate force
+                    const F = 8.99e9 * Math.abs(this.charges[0].charge * this.charges[1].charge) / (r ** 2);
+                    this.updateVariableDisplay('F', F.toExponential(2));
+                }
+            }
+            
+            updateVariableDisplay(variable, value) {
+                const element = document.getElementById(`var-${variable}`);
+                if (element) {
+                    element.textContent = value;
+                    element.parentElement.classList.add('variable-highlight');
+                    setTimeout(() => {
+                        element.parentElement.classList.remove('variable-highlight');
+                    }, 1000);
+                }
+            }
+            
+            updateGraphs() {
+                if (!this.phaseCanvas || !this.energyCanvas) return;
+                
+                this.updatePhaseSpaceGraph();
+                this.updateEnergyGraph();
+            }
+            
+            updatePhaseSpaceGraph() {
+                const ctx = this.phaseCanvas.getContext('2d');
+                ctx.clearRect(0, 0, this.phaseCanvas.width, this.phaseCanvas.height);
+                
+                // Draw axes
+                ctx.strokeStyle = '#4ecdc4';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, this.phaseCanvas.height/2);
+                ctx.lineTo(this.phaseCanvas.width, this.phaseCanvas.height/2);
+                ctx.moveTo(this.phaseCanvas.width/2, 0);
+                ctx.lineTo(this.phaseCanvas.width/2, this.phaseCanvas.height);
+                ctx.stroke();
+                
+                // Plot particles in phase space (position vs velocity)
+                this.testParticles.forEach(particle => {
+                    const x = (particle.x / this.canvas.width) * this.phaseCanvas.width;
+                    const y = this.phaseCanvas.height/2 - (particle.vx / 100) * this.phaseCanvas.height/2;
+                    
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+                
+                // Labels
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px Arial';
+                ctx.fillText('Position', 5, this.phaseCanvas.height - 5);
+                ctx.save();
+                ctx.translate(10, this.phaseCanvas.height/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.fillText('Velocity', 0, 0);
+                ctx.restore();
+            }
+            
+            updateEnergyGraph() {
+                const ctx = this.energyCanvas.getContext('2d');
+                ctx.clearRect(0, 0, this.energyCanvas.width, this.energyCanvas.height);
+                
+                // Calculate total system energy
+                let totalEnergy = 0;
+                this.charges.forEach((charge1, i) => {
+                    this.charges.forEach((charge2, j) => {
+                        if (i < j) {
+                            const dx = charge1.x - charge2.x;
+                            const dy = charge1.y - charge2.y;
+                            const r = Math.sqrt(dx * dx + dy * dy) / 100; // Convert to meters
+                            totalEnergy += 8.99e9 * charge1.charge * charge2.charge / r;
+                        }
+                    });
+                });
+                
+                // Store energy history
+                if (!this.energyHistory) this.energyHistory = [];
+                this.energyHistory.push(totalEnergy);
+                if (this.energyHistory.length > 100) this.energyHistory.shift();
+                
+                // Draw energy graph
+                if (this.energyHistory.length > 1) {
+                    ctx.strokeStyle = '#ff6b6b';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    this.energyHistory.forEach((energy, index) => {
+                        const x = (index / this.energyHistory.length) * this.energyCanvas.width;
+                        const y = this.energyCanvas.height - Math.abs(energy) / 1e10 * this.energyCanvas.height;
+                        
+                        if (index === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    });
+                    
+                    ctx.stroke();
+                }
+                
+                // Labels
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px Arial';
+                ctx.fillText('Energy (J)', 5, 15);
+                ctx.fillText(`Current: ${totalEnergy.toExponential(2)} J`, 5, this.energyCanvas.height - 5);
+            }
+            
+            generateContextualInsights() {
+                // Generate insights based on current state
+                const chargeCount = this.charges.length;
+                const particleCount = this.testParticles.length;
+                
+                if (chargeCount === 2 && !this.twoChargeInsightShown) {
+                    this.addInsight("🔍 Two charges create a dipole field - notice the field lines!");
+                    this.twoChargeInsightShown = true;
+                }
+                
+                if (particleCount > 0 && !this.particleInsightShown) {
+                    this.addInsight("⚡ Test particles follow field lines - they reveal the invisible electric field");
+                    this.particleInsightShown = true;
+                }
+            }
+            
+            toggleMathDNA() {
+                // Create mathematical DNA strands connecting equations
+                if (this.mathDNAActive) {
+                    this.createMathDNA();
+                } else {
+                    this.removeMathDNA();
+                }
+            }
+            
+            createMathDNA() {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.className = 'math-dna';
+                svg.style.position = 'absolute';
+                svg.style.top = '0';
+                svg.style.left = '0';
+                svg.style.width = '100%';
+                svg.style.height = '100%';
+                svg.style.pointerEvents = 'none';
+                svg.style.zIndex = '300';
+                
+                // Create DNA strands between equations
+                this.equationElements.forEach((eq1, i) => {
+                    this.equationElements.forEach((eq2, j) => {
+                        if (i < j) {
+                            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                            const rect1 = eq1.getBoundingClientRect();
+                            const rect2 = eq2.getBoundingClientRect();
+                            
+                            const x1 = rect1.left + rect1.width/2;
+                            const y1 = rect1.top + rect1.height/2;
+                            const x2 = rect2.left + rect2.width/2;
+                            const y2 = rect2.top + rect2.height/2;
+                            
+                            path.className = 'dna-strand';
+                            path.setAttribute('d', `M ${x1} ${y1} Q ${(x1+x2)/2} ${(y1+y2)/2 - 50} ${x2} ${y2}`);
+                            path.setAttribute('stroke-dasharray', '5,5');
+                            
+                            svg.appendChild(path);
+                        }
+                    });
+                });
+                
+                document.body.appendChild(svg);
+                this.mathDNASVG = svg;
+            }
+            
+            removeMathDNA() {
+                if (this.mathDNASVG) {
+                    this.mathDNASVG.remove();
+                    this.mathDNASVG = null;
+                }
+            }
+            
+            launchBridges() {
+                if (this.bridgesActive) {
+                    this.showBridgeInterface();
+                } else {
+                    this.hideBridgeInterface();
+                }
+            }
+            
+            showBridgeInterface() {
+                const bridge = document.createElement('div');
+                bridge.className = 'simulator-bridge';
+                bridge.innerHTML = `
+                    <div class="bridge-title">🌉 Cross-Simulator Bridges</div>
+                    <div class="bridge-connections">
+                        <div class="bridge-simulator">
+                            <div>Electromagnetic</div>
+                            <div>⚡ Current State</div>
+                        </div>
+                        <div class="bridge-arrow">➡️</div>
+                        <div class="bridge-simulator">
+                            <button onclick="this.transferToWave()">🌊 Wave</button>
+                            <button onclick="this.transferToProjectile()">🚀 Projectile</button>
+                            <button onclick="this.transferToPendulum()">🕰️ Pendulum</button>
+                        </div>
+                    </div>
+                    <button onclick="this.closeBridge()" style="margin-top: 15px;">Close</button>
+                `;
+                
+                bridge.onclick = (e) => {
+                    if (e.target.textContent === 'Close') {
+                        bridge.remove();
+                        this.bridgesActive = false;
+                        document.getElementById('launchBridges').textContent = '🌉 Bridges';
+                    }
+                };
+                
+                document.body.appendChild(bridge);
+                
+                document.getElementById('launchBridges').textContent = '🌉 Close Bridges';
+            }
+            
+            hideAnalysisPanel() {
+                const panel = document.querySelector('.analysis-panel');
+                if (panel) panel.remove();
+            }
+            
+            hideInsightStream() {
+                const stream = document.querySelector('.insight-stream');
+                if (stream) stream.remove();
+            }
+            
+            stopLiveEquationUpdates() {
+                if (this.equationUpdateInterval) {
+                    clearInterval(this.equationUpdateInterval);
+                }
+            }
+        }
+
+        // Enhanced EMFieldPlayground class with unified engine integration
+        class EMFieldPlayground {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                this.charges = [];
+                this.testParticles = [];
+                this.fieldLines = [];
+                
+                this.mode = 'positive';
+                this.showField = true;
+                this.showParticles = true;
+                this.paused = false;
+                
+                this.draggedCharge = null;
+                this.mousePos = { x: 0, y: 0 };
+                
+                this.k = 8.99e9;
+                this.scale = 1e-6;
+                
+                this.setupCanvas();
+                this.setupControls();
+                this.setupEventListeners();
+                this.animate();
+            }
+            
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+            
+            setupControls() {
+                document.getElementById('addPositive').onclick = () => this.setMode('positive');
+                document.getElementById('addNegative').onclick = () => this.setMode('negative');
+                document.getElementById('addParticle').onclick = () => this.setMode('particle');
+                document.getElementById('dragMode').onclick = () => this.setMode('drag');
+                
+                document.getElementById('toggleField').onclick = () => this.toggleField();
+                document.getElementById('toggleParticles').onclick = () => this.toggleParticles();
+                document.getElementById('clearAll').onclick = () => this.clearAll();
+                
+                document.getElementById('pausePlay').onclick = () => this.togglePause();
+                document.getElementById('resetSim').onclick = () => this.reset();
+            }
+            
+            setupEventListeners() {
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+            
+            setMode(newMode) {
+                this.mode = newMode;
+                document.querySelectorAll('.charge-controls button').forEach(btn => btn.classList.remove('active'));
+                
+                const buttonMap = {
+                    'positive': 'addPositive',
+                    'negative': 'addNegative',
+                    'particle': 'addParticle',
+                    'drag': 'dragMode'
+                };
+                
+                document.getElementById(buttonMap[newMode]).classList.add('active');
+                this.canvas.style.cursor = newMode === 'drag' ? 'grab' : 'crosshair';
+            }
+            
+            handleClick(e) {
+                if (this.mode === 'drag') return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                this.addElement(x, y);
+            }
+            
+            handleMouseDown(e) {
+                if (this.mode !== 'drag') return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                let nearestCharge = null;
+                let minDistance = 30;
+                
+                this.charges.forEach(charge => {
+                    const distance = Math.sqrt((x - charge.x) ** 2 + (y - charge.y) ** 2);
+                    if (distance < minDistance) {
+                        nearestCharge = charge;
+                        minDistance = distance;
+                    }
+                });
+                
+                if (nearestCharge) {
+                    this.draggedCharge = nearestCharge;
+                    this.canvas.style.cursor = 'grabbing';
+                }
+            }
+            
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                this.mousePos.x = e.clientX - rect.left;
+                this.mousePos.y = e.clientY - rect.top;
+                
+                if (this.draggedCharge) {
+                    this.draggedCharge.x = this.mousePos.x;
+                    this.draggedCharge.y = this.mousePos.y;
+                    this.updateFieldLines();
+                }
+            }
+            
+            handleMouseUp(e) {
+                if (this.draggedCharge) {
+                    this.draggedCharge = null;
+                    this.canvas.style.cursor = this.mode === 'drag' ? 'grab' : 'crosshair';
+                }
+            }
+            
+            addElement(x, y) {
+                switch (this.mode) {
+                    case 'positive':
+                        this.charges.push({
+                            x, y,
+                            charge: 1,
+                            color: '#ff4757',
+                            radius: 15
+                        });
+                        break;
+                        
+                    case 'negative':
+                        this.charges.push({
+                            x, y,
+                            charge: -1,
+                            color: '#3742fa',
+                            radius: 15
+                        });
+                        break;
+                        
+                    case 'particle':
+                        this.testParticles.push({
+                            x, y,
+                            vx: 0,
+                            vy: 0,
+                            charge: 0.1,
+                            mass: 1,
+                            color: '#2ed573',
+                            radius: 8,
+                            trail: []
+                        });
+                        break;
+                }
+                
+                this.updateFieldLines();
+            }
+            
+            updateFieldLines() {
+                this.fieldLines = [];
+                
+                if (!this.showField || this.charges.length === 0) return;
+                
+                this.charges.forEach(charge => {
+                    if (charge.charge > 0) {
+                        for (let i = 0; i < 8; i++) {
+                            const angle = (i / 8) * 2 * Math.PI;
+                            const fieldLine = this.traceFieldLine(
+                                charge.x + Math.cos(angle) * 20,
+                                charge.y + Math.sin(angle) * 20
+                            );
+                            if (fieldLine.length > 1) {
+                                this.fieldLines.push(fieldLine);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            traceFieldLine(startX, startY) {
+                const line = [];
+                let x = startX;
+                let y = startY;
+                const stepSize = 5;
+                const maxSteps = 200;
+                
+                for (let step = 0; step < maxSteps; step++) {
+                    const field = this.getElectricField(x, y);
+                    const magnitude = Math.sqrt(field.Ex ** 2 + field.Ey ** 2);
+                    
+                    if (magnitude < 1e-10) break;
+                    
+                    const Ex = field.Ex / magnitude;
+                    const Ey = field.Ey / magnitude;
+                    
+                    line.push({ x, y });
+                    
+                    x += Ex * stepSize;
+                    y += Ey * stepSize;
+                    
+                    if (x < 0 || x > this.canvas.width || y < 0 || y > this.canvas.height) break;
+                    
+                    let hitCharge = false;
+                    this.charges.forEach(charge => {
+                        if (charge.charge < 0) {
+                            const distance = Math.sqrt((x - charge.x) ** 2 + (y - charge.y) ** 2);
+                            if (distance < charge.radius) {
+                                hitCharge = true;
+                            }
+                        }
+                    });
+                    
+                    if (hitCharge) break;
+                }
+                
+                return line;
+            }
+            
+            getElectricField(x, y) {
+                let Ex = 0;
+                let Ey = 0;
+                
+                this.charges.forEach(charge => {
+                    const dx = x - charge.x;
+                    const dy = y - charge.y;
+                    const distance = Math.sqrt(dx ** 2 + dy ** 2);
+                    
+                    if (distance > 0.1) {
+                        const field = (this.k * charge.charge) / (distance ** 2);
+                        Ex += field * (dx / distance);
+                        Ey += field * (dy / distance);
+                    }
+                });
+                
+                return { Ex: Ex * this.scale, Ey: Ey * this.scale };
+            }
+            
+            updateParticles(dt) {
+                if (this.paused) return;
+                
+                this.testParticles.forEach(particle => {
+                    const field = this.getElectricField(particle.x, particle.y);
+                    
+                    const ax = (field.Ex * particle.charge) / particle.mass;
+                    const ay = (field.Ey * particle.charge) / particle.mass;
+                    
+                    particle.vx += ax * dt;
+                    particle.vy += ay * dt;
+                    
+                    particle.vx *= 0.99;
+                    particle.vy *= 0.99;
+                    
+                    particle.x += particle.vx * dt;
+                    particle.y += particle.vy * dt;
+                    
+                    particle.trail.push({ x: particle.x, y: particle.y });
+                    if (particle.trail.length > 50) {
+                        particle.trail.shift();
+                    }
+                    
+                    if (particle.x < 0 || particle.x > this.canvas.width) {
+                        particle.vx *= -0.8;
+                        particle.x = Math.max(0, Math.min(this.canvas.width, particle.x));
+                    }
+                    if (particle.y < 0 || particle.y > this.canvas.height) {
+                        particle.vy *= -0.8;
+                        particle.y = Math.max(0, Math.min(this.canvas.height, particle.y));
+                    }
+                });
+            }
+            
+            render() {
+                this.ctx.fillStyle = 'rgba(10, 10, 10, 0.05)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw field lines
+                if (this.showField) {
+                    this.ctx.strokeStyle = 'rgba(100, 200, 255, 0.3)';
+                    this.ctx.lineWidth = 1;
+                    
+                    this.fieldLines.forEach(line => {
+                        if (line.length < 2) return;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(line[0].x, line[0].y);
+                        for (let i = 1; i < line.length; i++) {
+                            this.ctx.lineTo(line[i].x, line[i].y);
+                        }
+                        this.ctx.stroke();
+                        
+                        // Draw arrows
+                        for (let i = 10; i < line.length; i += 20) {
+                            const p1 = line[i - 1];
+                            const p2 = line[i];
+                            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                            
+                            this.ctx.save();
+                            this.ctx.translate(p2.x, p2.y);
+                            this.ctx.rotate(angle);
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(0, 0);
+                            this.ctx.lineTo(-8, -3);
+                            this.ctx.lineTo(-8, 3);
+                            this.ctx.closePath();
+                            this.ctx.fillStyle = 'rgba(100, 200, 255, 0.6)';
+                            this.ctx.fill();
+                            this.ctx.restore();
+                        }
+                    });
+                }
+                
+                // Draw charges with enhanced glow
+                this.charges.forEach(charge => {
+                    this.ctx.save();
+                    this.ctx.shadowColor = charge.color;
+                    this.ctx.shadowBlur = 25;
+                    this.ctx.filter = 'brightness(1.2)';
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(charge.x, charge.y, charge.radius, 0, 2 * Math.PI);
+                    this.ctx.fillStyle = charge.color;
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                    
+                    // Charge symbol
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = 'bold 16px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(charge.charge > 0 ? '+' : '−', charge.x, charge.y);
+                });
+                
+                // Draw test particles
+                if (this.showParticles) {
+                    this.testParticles.forEach(particle => {
+                        // Draw trail
+                        if (particle.trail.length > 1) {
+                            this.ctx.strokeStyle = 'rgba(46, 213, 115, 0.3)';
+                            this.ctx.lineWidth = 2;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(particle.trail[0].x, particle.trail[0].y);
+                            for (let i = 1; i < particle.trail.length; i++) {
+                                this.ctx.lineTo(particle.trail[i].x, particle.trail[i].y);
+                            }
+                            this.ctx.stroke();
+                        }
+                        
+                        // Draw particle
+                        this.ctx.save();
+                        this.ctx.shadowColor = particle.color;
+                        this.ctx.shadowBlur = 15;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.arc(particle.x, particle.y, particle.radius, 0, 2 * Math.PI);
+                        this.ctx.fillStyle = particle.color;
+                        this.ctx.fill();
+                        
+                        this.ctx.restore();
+                    });
+                }
+            }
+            
+            toggleField() {
+                this.showField = !this.showField;
+                document.getElementById('toggleField').textContent = `Field Lines: ${this.showField ? 'ON' : 'OFF'}`;
+                this.updateFieldLines();
+            }
+            
+            toggleParticles() {
+                this.showParticles = !this.showParticles;
+                document.getElementById('toggleParticles').textContent = `Particles: ${this.showParticles ? 'ON' : 'OFF'}`;
+            }
+            
+            togglePause() {
+                this.paused = !this.paused;
+                document.getElementById('pausePlay').textContent = this.paused ? 'Play' : 'Pause';
+            }
+            
+            clearAll() {
+                this.charges = [];
+                this.testParticles = [];
+                this.fieldLines = [];
+                this.updateFieldLines();
+            }
+            
+            reset() {
+                this.clearAll();
+                this.paused = false;
+                document.getElementById('pausePlay').textContent = 'Pause';
+            }
+            
+            animate() {
+                const dt = 0.016;
+                
+                this.updateParticles(dt);
+                this.render();
+                
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Initialize the Reality Engine
+        const playground = new EMRealityEngine();
+    </script>
+</body>
+</html>

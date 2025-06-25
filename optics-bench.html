@@ -130,6 +130,7 @@
             font-weight: bold;
         }
     </style>
+    <script src="optics-physics-engine.js"></script>
 </head>
 <body>
     <a href="physics-simulator.html" class="nav-home">← Back to Home</a>
@@ -142,7 +143,7 @@
             <label>Light Sources:</label>
             <div class="component-grid">
                 <button id="addLaser" class="active">🔴 Laser</button>
-                <button id="addLight">💡 Light</button>
+                <button id="addLight">💡 Point Light</button>
             </div>
         </div>
 
@@ -152,18 +153,18 @@
                 <button id="addMirror">🪞 Mirror</button>
                 <button id="addLens">🔍 Lens</button>
                 <button id="addPrism">🔺 Prism</button>
-                <button id="addSlit">📏 Slit</button>
+                <button id="addBarrier">🧱 Barrier</button>
             </div>
         </div>
 
         <div class="control-group">
-            <label>Wavelength: <span id="wavelengthValue">650</span> nm</label>
-            <input type="range" id="wavelength" min="400" max="700" step="10" value="650">
+            <label>Wavelength: <span id="wavelengthValue">550</span> nm</label>
+            <input type="range" id="wavelength" min="400" max="700" step="10" value="550">
         </div>
 
         <div class="control-group">
-            <label>Intensity: <span id="intensityValue">100</span>%</label>
-            <input type="range" id="intensity" min="10" max="100" step="5" value="100">
+            <label>Ray Count: <span id="rayCountValue">5</span></label>
+            <input type="range" id="rayCount" min="1" max="20" step="1" value="5">
         </div>
 
         <div class="control-group">
@@ -181,20 +182,20 @@
     </div>
 
     <div class="measurements">
-        <div><strong>Optical Properties:</strong></div>
-        <div>Ray Count: <span id="rayCount">0</span></div>
-        <div>Total Path: <span id="totalPath">0</span> cm</div>
-        <div>Reflections: <span id="reflections">0</span></div>
-        <div>Refractions: <span id="refractions">0</span></div>
-        <div>Current Color: <span id="currentColor" style="width:20px;height:20px;display:inline-block;"></span></div>
+        <div><strong>Optical Analysis:</strong></div>
+        <div>Active Rays: <span id="activeRays">0</span></div>
+        <div>Total Reflections: <span id="totalReflections">0</span></div>
+        <div>Total Refractions: <span id="totalRefractions">0</span></div>
+        <div>Avg Path Length: <span id="avgPathLength">0</span> cm</div>
+        <div>Current Color: <span id="currentColor" style="width:15px;height:15px;display:inline-block;border-radius:50%;"></span></div>
     </div>
 
     <div class="info">
         <strong>Optics Bench:</strong><br>
-        • Place light sources and optical elements<br>
-        • Watch light rays interact with lenses and mirrors<br>
-        • Adjust wavelength to see different colors<br>
-        • Observe reflection, refraction, and dispersion
+        • Place laser or point light sources<br>
+        • Add mirrors, lenses, prisms, and barriers<br>
+        • Watch realistic ray tracing and interactions<br>
+        • Adjust wavelength to see different colors
     </div>
 
     <script>
@@ -207,17 +208,22 @@
                 this.rays = [];
                 
                 this.mode = 'laser';
-                this.wavelength = 650; // nanometers
-                this.intensity = 100;
+                this.wavelength = 550;
+                this.rayCount = 5;
                 this.showRays = true;
                 
                 this.selectedComponent = null;
                 this.dragging = false;
                 this.rotating = false;
+                this.dragOffset = { x: 0, y: 0 };
+                
+                // Initialize physics engine
+                this.physics = new OpticsPhysicsEngine();
                 
                 this.setupCanvas();
                 this.setupControls();
                 this.setupEventListeners();
+                this.updateColorDisplay();
                 this.animate();
             }
             
@@ -229,6 +235,7 @@
             resizeCanvas() {
                 this.canvas.width = window.innerWidth;
                 this.canvas.height = window.innerHeight;
+                this.calculateRays();
             }
             
             setupControls() {
@@ -237,7 +244,7 @@
                 document.getElementById('addMirror').onclick = () => this.setMode('mirror');
                 document.getElementById('addLens').onclick = () => this.setMode('lens');
                 document.getElementById('addPrism').onclick = () => this.setMode('prism');
-                document.getElementById('addSlit').onclick = () => this.setMode('slit');
+                document.getElementById('addBarrier').onclick = () => this.setMode('barrier');
                 
                 document.getElementById('moveMode').onclick = () => this.setMode('move');
                 document.getElementById('rotateMode').onclick = () => this.setMode('rotate');
@@ -250,16 +257,14 @@
                     this.calculateRays();
                 };
                 
-                document.getElementById('intensity').oninput = (e) => {
-                    this.intensity = parseInt(e.target.value);
-                    document.getElementById('intensityValue').textContent = this.intensity;
+                document.getElementById('rayCount').oninput = (e) => {
+                    this.rayCount = parseInt(e.target.value);
+                    document.getElementById('rayCountValue').textContent = this.rayCount;
                     this.calculateRays();
                 };
                 
                 document.getElementById('toggleRays').onclick = () => this.toggleRays();
                 document.getElementById('clearAll').onclick = () => this.clearAll();
-                
-                this.updateColorDisplay();
             }
             
             setupEventListeners() {
@@ -279,7 +284,7 @@
                     'mirror': 'addMirror',
                     'lens': 'addLens',
                     'prism': 'addPrism',
-                    'slit': 'addSlit',
+                    'barrier': 'addBarrier',
                     'move': 'moveMode',
                     'rotate': 'rotateMode',
                     'delete': 'deleteMode'
@@ -288,6 +293,10 @@
                 if (buttonMap[mode]) {
                     document.getElementById(buttonMap[mode]).classList.add('active');
                 }
+                
+                this.canvas.style.cursor = mode === 'move' ? 'grab' : 
+                                          mode === 'rotate' ? 'crosshair' :
+                                          mode === 'delete' ? 'not-allowed' : 'crosshair';
             }
             
             handleClick(e) {
@@ -297,9 +306,7 @@
                 
                 if (this.mode === 'delete') {
                     this.deleteComponentAt(x, y);
-                } else if (['move', 'rotate'].includes(this.mode)) {
-                    // Handled in mouse events
-                } else {
+                } else if (!['move', 'rotate'].includes(this.mode)) {
                     this.addComponent(x, y);
                 }
             }
@@ -315,6 +322,9 @@
                 if (this.selectedComponent) {
                     this.dragging = this.mode === 'move';
                     this.rotating = this.mode === 'rotate';
+                    this.dragOffset.x = x - this.selectedComponent.x;
+                    this.dragOffset.y = y - this.selectedComponent.y;
+                    this.canvas.style.cursor = 'grabbing';
                 }
             }
             
@@ -326,8 +336,8 @@
                 const y = e.clientY - rect.top;
                 
                 if (this.dragging) {
-                    this.selectedComponent.x = x;
-                    this.selectedComponent.y = y;
+                    this.selectedComponent.x = x - this.dragOffset.x;
+                    this.selectedComponent.y = y - this.dragOffset.y;
                     this.calculateRays();
                 } else if (this.rotating) {
                     const dx = x - this.selectedComponent.x;
@@ -341,39 +351,38 @@
                 this.selectedComponent = null;
                 this.dragging = false;
                 this.rotating = false;
+                this.canvas.style.cursor = this.mode === 'move' ? 'grab' : 
+                                          this.mode === 'rotate' ? 'crosshair' :
+                                          this.mode === 'delete' ? 'not-allowed' : 'crosshair';
             }
             
             addComponent(x, y) {
                 const component = {
-                    id: Date.now(),
+                    id: Date.now() + Math.random(),
                     type: this.mode,
                     x: x,
                     y: y,
                     angle: 0,
-                    properties: this.getDefaultProperties(this.mode)
+                    width: this.mode === 'lens' ? 80 : 60,
+                    height: this.mode === 'lens' ? 80 : 60,
+                    focalLength: this.mode === 'lens' ? 150 : undefined, // 150 pixel focal length
+                    material: this.mode === 'prism' ? 'glass' : undefined
                 };
                 
                 this.components.push(component);
                 this.calculateRays();
             }
             
-            getDefaultProperties(type) {
-                const defaults = {
-                    'laser': { power: this.intensity, divergence: 0.01 },
-                    'light': { power: this.intensity, divergence: 0.5 },
-                    'mirror': { reflectivity: 0.95 },
-                    'lens': { focalLength: 100, diameter: 60 },
-                    'prism': { refractiveIndex: 1.5, apex: 60 },
-                    'slit': { width: 20 }
-                };
-                return defaults[type] || {};
-            }
-            
             getComponentAt(x, y) {
-                return this.components.find(c => {
-                    const distance = Math.sqrt((c.x - x) ** 2 + (c.y - y) ** 2);
-                    return distance < 30;
-                });
+                // Check in reverse order (top to bottom)
+                for (let i = this.components.length - 1; i >= 0; i--) {
+                    const comp = this.components[i];
+                    const distance = Math.sqrt((comp.x - x) ** 2 + (comp.y - y) ** 2);
+                    if (distance < 40) {
+                        return comp;
+                    }
+                }
+                return null;
             }
             
             deleteComponentAt(x, y) {
@@ -391,27 +400,14 @@
                 
                 lightSources.forEach(source => {
                     if (source.type === 'laser') {
-                        // Single ray for laser
-                        this.traceRay({
-                            x: source.x,
-                            y: source.y,
-                            dx: Math.cos(source.angle),
-                            dy: Math.sin(source.angle),
-                            wavelength: this.wavelength,
-                            intensity: this.intensity / 100
-                        });
+                        // Single focused ray for laser
+                        this.traceRay(source.x, source.y, Math.cos(source.angle), Math.sin(source.angle));
                     } else {
-                        // Multiple rays for light source
-                        for (let i = 0; i < 8; i++) {
-                            const angle = (i / 8) * 2 * Math.PI;
-                            this.traceRay({
-                                x: source.x,
-                                y: source.y,
-                                dx: Math.cos(angle),
-                                dy: Math.sin(angle),
-                                wavelength: this.wavelength,
-                                intensity: this.intensity / 800 // Divided among rays
-                            });
+                        // Multiple rays for point light
+                        const angleStep = (2 * Math.PI) / this.rayCount;
+                        for (let i = 0; i < this.rayCount; i++) {
+                            const angle = i * angleStep;
+                            this.traceRay(source.x, source.y, Math.cos(angle), Math.sin(angle));
                         }
                     }
                 });
@@ -419,18 +415,23 @@
                 this.updateMeasurements();
             }
             
-            traceRay(ray) {
-                let currentRay = { ...ray };
-                const rayPath = [{ x: currentRay.x, y: currentRay.y }];
-                let interactions = 0;
-                const maxBounces = 10;
+            traceRay(startX, startY, dirX, dirY) {
+                let x = startX;
+                let y = startY;
+                let dx = dirX;
+                let dy = dirY;
+                
+                const rayPath = [{ x, y }];
+                let reflections = 0;
+                let refractions = 0;
+                const maxBounces = 20;
                 
                 for (let bounce = 0; bounce < maxBounces; bounce++) {
-                    const intersection = this.findNearestIntersection(currentRay);
+                    const intersection = this.findRayIntersection(x, y, dx, dy);
                     
                     if (!intersection) {
-                        // Ray exits the canvas
-                        const edge = this.findCanvasExit(currentRay);
+                        // Ray hits canvas edge
+                        const edge = this.findCanvasIntersection(x, y, dx, dy);
                         if (edge) {
                             rayPath.push(edge);
                         }
@@ -439,194 +440,257 @@
                     
                     rayPath.push({ x: intersection.x, y: intersection.y });
                     
-                    const newRay = this.handleInteraction(currentRay, intersection);
-                    if (!newRay) break; // Ray absorbed
+                    // Handle interaction
+                    const result = this.handleRayInteraction(intersection, dx, dy);
+                    if (!result) break; // Ray absorbed
                     
-                    currentRay = newRay;
-                    interactions++;
+                    x = intersection.x;
+                    y = intersection.y;
+                    dx = result.dx;
+                    dy = result.dy;
+                    
+                    if (result.type === 'reflection') reflections++;
+                    if (result.type === 'refraction') refractions++;
                 }
                 
-                this.rays.push({
-                    path: rayPath,
-                    wavelength: ray.wavelength,
-                    intensity: ray.intensity,
-                    interactions: interactions
-                });
+                if (rayPath.length > 1) {
+                    this.rays.push({
+                        path: rayPath,
+                        reflections,
+                        refractions,
+                        wavelength: this.wavelength
+                    });
+                }
             }
             
-            findNearestIntersection(ray) {
-                let nearest = null;
+            findRayIntersection(x, y, dx, dy) {
+                let closestIntersection = null;
                 let minDistance = Infinity;
                 
                 this.components.forEach(component => {
                     if (['laser', 'light'].includes(component.type)) return;
                     
-                    const intersection = this.getIntersection(ray, component);
+                    const intersection = this.getRayComponentIntersection(x, y, dx, dy, component);
+                    if (intersection && intersection.distance > 0.1 && intersection.distance < minDistance) {
+                        minDistance = intersection.distance;
+                        closestIntersection = {
+                            x: intersection.x,
+                            y: intersection.y,
+                            component: component,
+                            normal: intersection.normal
+                        };
+                    }
+                });
+                
+                return closestIntersection;
+            }
+            
+            getRayComponentIntersection(rayX, rayY, rayDx, rayDy, component) {
+                const { x: compX, y: compY, angle: compAngle, width, height } = component;
+                
+                // Create component boundaries based on type
+                let boundaries = [];
+                
+                if (component.type === 'mirror') {
+                    // Single line mirror
+                    const cos = Math.cos(compAngle);
+                    const sin = Math.sin(compAngle);
+                    const halfWidth = width / 2;
+                    
+                    boundaries.push({
+                        x1: compX - cos * halfWidth,
+                        y1: compY - sin * halfWidth,
+                        x2: compX + cos * halfWidth,
+                        y2: compY + sin * halfWidth,
+                        type: 'mirror'
+                    });
+                } else if (component.type === 'lens') {
+                    // Lens as vertical line (simplified)
+                    boundaries.push({
+                        x1: compX,
+                        y1: compY - height/2,
+                        x2: compX,
+                        y2: compY + height/2,
+                        type: 'lens'
+                    });
+                } else if (component.type === 'prism') {
+                    // Triangle prism
+                    const size = width / 2;
+                    boundaries.push(
+                        {
+                            x1: compX - size,
+                            y1: compY + size/2,
+                            x2: compX + size,
+                            y2: compY + size/2,
+                            type: 'prism'
+                        },
+                        {
+                            x1: compX - size,
+                            y1: compY + size/2,
+                            x2: compX,
+                            y2: compY - size,
+                            type: 'prism'
+                        },
+                        {
+                            x1: compX,
+                            y1: compY - size,
+                            x2: compX + size,
+                            y2: compY + size/2,
+                            type: 'prism'
+                        }
+                    );
+                } else if (component.type === 'barrier') {
+                    // Opaque barrier
+                    const cos = Math.cos(compAngle);
+                    const sin = Math.sin(compAngle);
+                    const halfWidth = width / 2;
+                    
+                    boundaries.push({
+                        x1: compX - cos * halfWidth,
+                        y1: compY - sin * halfWidth,
+                        x2: compX + cos * halfWidth,
+                        y2: compY + sin * halfWidth,
+                        type: 'barrier'
+                    });
+                }
+                
+                // Find closest intersection
+                let closestIntersection = null;
+                let minDistance = Infinity;
+                
+                boundaries.forEach(boundary => {
+                    const intersection = this.lineIntersection(
+                        rayX, rayY, rayX + rayDx * 1000, rayY + rayDy * 1000,
+                        boundary.x1, boundary.y1, boundary.x2, boundary.y2
+                    );
+                    
                     if (intersection) {
-                        const distance = Math.sqrt(
-                            (intersection.x - ray.x) ** 2 + (intersection.y - ray.y) ** 2
-                        );
-                        
-                        if (distance > 1 && distance < minDistance) {
+                        const distance = Math.sqrt((intersection.x - rayX) ** 2 + (intersection.y - rayY) ** 2);
+                        if (distance < minDistance) {
                             minDistance = distance;
-                            nearest = { ...intersection, component: component };
+                            
+                            // Calculate normal
+                            const lineAngle = Math.atan2(boundary.y2 - boundary.y1, boundary.x2 - boundary.x1);
+                            const normalAngle = lineAngle + Math.PI / 2;
+                            
+                            closestIntersection = {
+                                x: intersection.x,
+                                y: intersection.y,
+                                distance: distance,
+                                normal: { x: Math.cos(normalAngle), y: Math.sin(normalAngle) },
+                                surfaceType: boundary.type
+                            };
                         }
                     }
                 });
                 
-                return nearest;
+                return closestIntersection;
             }
             
-            getIntersection(ray, component) {
-                // Simplified intersection detection
-                const dx = component.x - ray.x;
-                const dy = component.y - ray.y;
-                const dot = dx * ray.dx + dy * ray.dy;
+            lineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+                const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (Math.abs(denom) < 0.0001) return null;
                 
-                if (dot <= 0) return null; // Behind ray start
+                const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+                const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
                 
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const perpDistance = Math.abs(dx * ray.dy - dy * ray.dx);
-                
-                if (perpDistance < 30) { // Hit tolerance
+                if (t >= 0 && u >= 0 && u <= 1) {
                     return {
-                        x: ray.x + ray.dx * dot,
-                        y: ray.y + ray.dy * dot,
-                        distance: dot
+                        x: x1 + t * (x2 - x1),
+                        y: y1 + t * (y2 - y1)
                     };
                 }
                 
                 return null;
             }
             
-            handleInteraction(ray, intersection) {
-                const component = intersection.component;
+            handleRayInteraction(intersection, rayDx, rayDy) {
+                const { component, normal } = intersection;
                 
-                switch (component.type) {
-                    case 'mirror':
-                        return this.handleMirrorReflection(ray, intersection, component);
-                    case 'lens':
-                        return this.handleLensRefraction(ray, intersection, component);
-                    case 'prism':
-                        return this.handlePrismRefraction(ray, intersection, component);
-                    case 'slit':
-                        return this.handleSlitDiffraction(ray, intersection, component);
-                    default:
-                        return null;
+                if (component.type === 'barrier') {
+                    return null; // Ray absorbed
                 }
-            }
-            
-            handleMirrorReflection(ray, intersection, mirror) {
-                // Simple reflection (assuming perpendicular mirror)
-                const normal = { x: 0, y: 1 }; // Simplified normal
-                const dot = 2 * (ray.dx * normal.x + ray.dy * normal.y);
                 
-                return {
-                    x: intersection.x,
-                    y: intersection.y,
-                    dx: ray.dx - dot * normal.x,
-                    dy: ray.dy - dot * normal.y,
-                    wavelength: ray.wavelength,
-                    intensity: ray.intensity * 0.95
-                };
+                const ray = { x: rayDx, y: rayDy };
+                
+                if (component.type === 'mirror') {
+                    // Use physics engine for perfect reflection
+                    const reflected = this.physics.reflect(ray, normal);
+                    return {
+                        dx: reflected.x,
+                        dy: reflected.y,
+                        type: 'reflection'
+                    };
+                }
+                
+                if (component.type === 'lens') {
+                    // Use proper lens physics
+                    const refracted = this.physics.calculateLensRefraction(ray, component, intersection);
+                    return {
+                        dx: refracted.x,
+                        dy: refracted.y,
+                        type: 'refraction'
+                    };
+                }
+                
+                if (component.type === 'prism') {
+                    // Use physics engine for wavelength-dependent refraction
+                    const result = this.physics.calculatePrismDispersion(ray, component, this.wavelength, intersection, normal);
+                    if (result.refracted) {
+                        return {
+                            dx: result.refracted.x,
+                            dy: result.refracted.y,
+                            type: 'refraction',
+                            intensity: result.transmittance
+                        };
+                    } else {
+                        // Total internal reflection
+                        return {
+                            dx: result.reflected.x,
+                            dy: result.reflected.y,
+                            type: 'reflection',
+                            intensity: result.reflectance
+                        };
+                    }
+                }
+                
+                return { dx: rayDx, dy: rayDy, type: 'transmission' };
             }
             
-            handleLensRefraction(ray, intersection, lens) {
-                // Simplified lens behavior
-                return {
-                    x: intersection.x,
-                    y: intersection.y,
-                    dx: ray.dx,
-                    dy: ray.dy + (intersection.x - lens.x) * 0.001, // Simple focusing
-                    wavelength: ray.wavelength,
-                    intensity: ray.intensity * 0.98
-                };
-            }
-            
-            handlePrismRefraction(ray, intersection, prism) {
-                // Simplified prism dispersion
-                const dispersion = (ray.wavelength - 550) * 0.0001;
-                return {
-                    x: intersection.x,
-                    y: intersection.y,
-                    dx: ray.dx + dispersion,
-                    dy: ray.dy,
-                    wavelength: ray.wavelength,
-                    intensity: ray.intensity * 0.9
-                };
-            }
-            
-            handleSlitDiffraction(ray, intersection, slit) {
-                // Pass through with some spreading
-                return {
-                    x: intersection.x,
-                    y: intersection.y,
-                    dx: ray.dx + (Math.random() - 0.5) * 0.1,
-                    dy: ray.dy + (Math.random() - 0.5) * 0.1,
-                    wavelength: ray.wavelength,
-                    intensity: ray.intensity * 0.8
-                };
-            }
-            
-            findCanvasExit(ray) {
+            findCanvasIntersection(x, y, dx, dy) {
                 const margin = 10;
+                let closestIntersection = null;
+                let minDistance = Infinity;
                 
-                // Check canvas boundaries
-                if (ray.dx > 0) {
-                    const t = (this.canvas.width - margin - ray.x) / ray.dx;
-                    if (t > 0) return { x: this.canvas.width - margin, y: ray.y + ray.dy * t };
-                }
-                if (ray.dx < 0) {
-                    const t = (margin - ray.x) / ray.dx;
-                    if (t > 0) return { x: margin, y: ray.y + ray.dy * t };
-                }
-                if (ray.dy > 0) {
-                    const t = (this.canvas.height - margin - ray.y) / ray.dy;
-                    if (t > 0) return { x: ray.x + ray.dx * t, y: this.canvas.height - margin };
-                }
-                if (ray.dy < 0) {
-                    const t = (margin - ray.y) / ray.dy;
-                    if (t > 0) return { x: ray.x + ray.dx * t, y: margin };
-                }
+                // Check each canvas edge
+                const edges = [
+                    { x1: margin, y1: margin, x2: this.canvas.width - margin, y2: margin }, // top
+                    { x1: this.canvas.width - margin, y1: margin, x2: this.canvas.width - margin, y2: this.canvas.height - margin }, // right
+                    { x1: this.canvas.width - margin, y1: this.canvas.height - margin, x2: margin, y2: this.canvas.height - margin }, // bottom
+                    { x1: margin, y1: this.canvas.height - margin, x2: margin, y2: margin } // left
+                ];
                 
-                return null;
+                edges.forEach(edge => {
+                    const intersection = this.lineIntersection(
+                        x, y, x + dx * 2000, y + dy * 2000,
+                        edge.x1, edge.y1, edge.x2, edge.y2
+                    );
+                    
+                    if (intersection) {
+                        const distance = Math.sqrt((intersection.x - x) ** 2 + (intersection.y - y) ** 2);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestIntersection = intersection;
+                        }
+                    }
+                });
+                
+                return closestIntersection;
             }
             
             wavelengthToColor(wavelength) {
-                // Convert wavelength to RGB
-                let r, g, b;
-                
-                if (wavelength >= 380 && wavelength < 440) {
-                    r = -(wavelength - 440) / (440 - 380);
-                    g = 0;
-                    b = 1;
-                } else if (wavelength >= 440 && wavelength < 490) {
-                    r = 0;
-                    g = (wavelength - 440) / (490 - 440);
-                    b = 1;
-                } else if (wavelength >= 490 && wavelength < 510) {
-                    r = 0;
-                    g = 1;
-                    b = -(wavelength - 510) / (510 - 490);
-                } else if (wavelength >= 510 && wavelength < 580) {
-                    r = (wavelength - 510) / (580 - 510);
-                    g = 1;
-                    b = 0;
-                } else if (wavelength >= 580 && wavelength < 645) {
-                    r = 1;
-                    g = -(wavelength - 645) / (645 - 580);
-                    b = 0;
-                } else if (wavelength >= 645 && wavelength <= 750) {
-                    r = 1;
-                    g = 0;
-                    b = 0;
-                } else {
-                    r = 0;
-                    g = 0;
-                    b = 0;
-                }
-                
-                return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+                const rgb = this.physics.wavelengthToRGB(wavelength);
+                return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
             }
             
             updateColorDisplay() {
@@ -635,24 +699,29 @@
             }
             
             updateMeasurements() {
-                const rayCount = this.rays.length;
-                let totalPath = 0;
-                let reflections = 0;
-                let refractions = 0;
+                const activeRays = this.rays.length;
+                let totalReflections = 0;
+                let totalRefractions = 0;
+                let totalPathLength = 0;
                 
                 this.rays.forEach(ray => {
+                    totalReflections += ray.reflections;
+                    totalRefractions += ray.refractions;
+                    
+                    // Calculate path length
                     for (let i = 1; i < ray.path.length; i++) {
                         const dx = ray.path[i].x - ray.path[i-1].x;
                         const dy = ray.path[i].y - ray.path[i-1].y;
-                        totalPath += Math.sqrt(dx * dx + dy * dy);
+                        totalPathLength += Math.sqrt(dx * dx + dy * dy);
                     }
-                    reflections += ray.interactions;
                 });
                 
-                document.getElementById('rayCount').textContent = rayCount;
-                document.getElementById('totalPath').textContent = (totalPath / 10).toFixed(1); // Convert to cm
-                document.getElementById('reflections').textContent = reflections;
-                document.getElementById('refractions').textContent = Math.floor(reflections * 0.3); // Estimate
+                const avgPathLength = activeRays > 0 ? totalPathLength / activeRays / 10 : 0; // Convert to cm
+                
+                document.getElementById('activeRays').textContent = activeRays;
+                document.getElementById('totalReflections').textContent = totalReflections;
+                document.getElementById('totalRefractions').textContent = totalRefractions;
+                document.getElementById('avgPathLength').textContent = avgPathLength.toFixed(1);
             }
             
             render() {
@@ -660,9 +729,25 @@
                 this.ctx.fillStyle = '#1a1a1a';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 
-                // Draw optical bench (table)
+                // Draw optical table
                 this.ctx.fillStyle = '#8B4513';
                 this.ctx.fillRect(0, this.canvas.height - 40, this.canvas.width, 40);
+                
+                // Draw table grid
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                for (let x = 0; x < this.canvas.width; x += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height - 40);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y < this.canvas.height - 40; y += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
                 
                 // Draw rays
                 if (this.showRays) {
@@ -671,8 +756,9 @@
                         
                         const color = this.wavelengthToColor(ray.wavelength);
                         this.ctx.strokeStyle = color;
-                        this.ctx.lineWidth = Math.max(1, ray.intensity * 3);
-                        this.ctx.globalAlpha = ray.intensity;
+                        this.ctx.lineWidth = 2;
+                        this.ctx.shadowColor = color;
+                        this.ctx.shadowBlur = 5;
                         
                         this.ctx.beginPath();
                         this.ctx.moveTo(ray.path[0].x, ray.path[0].y);
@@ -681,7 +767,7 @@
                         }
                         this.ctx.stroke();
                         
-                        this.ctx.globalAlpha = 1;
+                        this.ctx.shadowBlur = 0;
                     });
                 }
                 
@@ -695,7 +781,7 @@
                     this.ctx.strokeStyle = '#ffff00';
                     this.ctx.lineWidth = 3;
                     this.ctx.beginPath();
-                    this.ctx.arc(this.selectedComponent.x, this.selectedComponent.y, 35, 0, 2 * Math.PI);
+                    this.ctx.arc(this.selectedComponent.x, this.selectedComponent.y, 45, 0, 2 * Math.PI);
                     this.ctx.stroke();
                 }
             }
@@ -707,10 +793,10 @@
                 
                 switch (component.type) {
                     case 'laser':
-                        this.drawLaser(component);
+                        this.drawLaser();
                         break;
                     case 'light':
-                        this.drawLight(component);
+                        this.drawPointLight();
                         break;
                     case 'mirror':
                         this.drawMirror(component);
@@ -721,99 +807,122 @@
                     case 'prism':
                         this.drawPrism(component);
                         break;
-                    case 'slit':
-                        this.drawSlit(component);
+                    case 'barrier':
+                        this.drawBarrier(component);
                         break;
                 }
                 
                 this.ctx.restore();
             }
             
-            drawLaser(component) {
-                // Laser body
+            drawLaser() {
+                // Laser housing
                 this.ctx.fillStyle = '#e74c3c';
-                this.ctx.fillRect(-15, -5, 30, 10);
+                this.ctx.fillRect(-20, -8, 40, 16);
+                
+                // Laser aperture
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(18, -3, 4, 6);
                 
                 // Beam indicator
                 this.ctx.strokeStyle = this.wavelengthToColor(this.wavelength);
-                this.ctx.lineWidth = 2;
+                this.ctx.lineWidth = 3;
                 this.ctx.beginPath();
-                this.ctx.moveTo(15, 0);
-                this.ctx.lineTo(25, 0);
+                this.ctx.moveTo(22, 0);
+                this.ctx.lineTo(35, 0);
                 this.ctx.stroke();
             }
             
-            drawLight(component) {
+            drawPointLight() {
                 // Light bulb
                 this.ctx.fillStyle = '#f39c12';
+                this.ctx.shadowColor = '#f39c12';
+                this.ctx.shadowBlur = 20;
                 this.ctx.beginPath();
-                this.ctx.arc(0, 0, 12, 0, 2 * Math.PI);
+                this.ctx.arc(0, 0, 15, 0, 2 * Math.PI);
                 this.ctx.fill();
+                this.ctx.shadowBlur = 0;
                 
-                // Rays
+                // Light rays indicator
                 this.ctx.strokeStyle = this.wavelengthToColor(this.wavelength);
-                this.ctx.lineWidth = 1;
+                this.ctx.lineWidth = 2;
                 for (let i = 0; i < 8; i++) {
                     const angle = (i / 8) * 2 * Math.PI;
                     this.ctx.beginPath();
-                    this.ctx.moveTo(12 * Math.cos(angle), 12 * Math.sin(angle));
-                    this.ctx.lineTo(20 * Math.cos(angle), 20 * Math.sin(angle));
+                    this.ctx.moveTo(15 * Math.cos(angle), 15 * Math.sin(angle));
+                    this.ctx.lineTo(25 * Math.cos(angle), 25 * Math.sin(angle));
                     this.ctx.stroke();
                 }
             }
             
             drawMirror(component) {
+                const halfWidth = component.width / 2;
+                
                 // Mirror surface
                 this.ctx.fillStyle = '#ecf0f1';
-                this.ctx.fillRect(-2, -25, 4, 50);
+                this.ctx.fillRect(-halfWidth, -3, component.width, 6);
                 
                 // Mirror backing
                 this.ctx.fillStyle = '#34495e';
-                this.ctx.fillRect(-5, -25, 3, 50);
+                this.ctx.fillRect(-halfWidth, -6, component.width, 3);
+                
+                // Reflective highlight
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-halfWidth, 0);
+                this.ctx.lineTo(halfWidth, 0);
+                this.ctx.stroke();
             }
             
             drawLens(component) {
-                // Lens shape (simplified)
-                this.ctx.strokeStyle = '#3498db';
-                this.ctx.lineWidth = 3;
+                const halfHeight = component.height / 2;
                 
-                // Convex lens
+                // Lens outline
+                this.ctx.strokeStyle = '#3498db';
+                this.ctx.lineWidth = 4;
                 this.ctx.beginPath();
-                this.ctx.arc(-10, 0, 25, -Math.PI/3, Math.PI/3);
-                this.ctx.arc(10, 0, 25, 2*Math.PI/3, 4*Math.PI/3);
+                this.ctx.moveTo(0, -halfHeight);
+                this.ctx.lineTo(0, halfHeight);
+                this.ctx.stroke();
+                
+                // Lens curves (simplified representation)
+                this.ctx.strokeStyle = '#3498db';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(-8, 0, halfHeight * 0.8, -Math.PI/2, Math.PI/2);
+                this.ctx.arc(8, 0, halfHeight * 0.8, Math.PI/2, 3*Math.PI/2);
                 this.ctx.stroke();
             }
             
             drawPrism(component) {
-                // Triangular prism
+                const size = component.width / 2;
+                
+                // Prism triangle
                 this.ctx.fillStyle = 'rgba(52, 152, 219, 0.7)';
                 this.ctx.strokeStyle = '#3498db';
-                this.ctx.lineWidth = 2;
+                this.ctx.lineWidth = 3;
                 
                 this.ctx.beginPath();
-                this.ctx.moveTo(0, -20);
-                this.ctx.lineTo(-15, 15);
-                this.ctx.lineTo(15, 15);
+                this.ctx.moveTo(0, -size);
+                this.ctx.lineTo(-size, size/2);
+                this.ctx.lineTo(size, size/2);
                 this.ctx.closePath();
                 this.ctx.fill();
                 this.ctx.stroke();
             }
             
-            drawSlit(component) {
-                // Slit barrier
-                this.ctx.fillStyle = '#2c3e50';
-                this.ctx.fillRect(-20, -25, 15, 50);
-                this.ctx.fillRect(5, -25, 15, 50);
+            drawBarrier(component) {
+                const halfWidth = component.width / 2;
                 
-                // Slit opening
-                this.ctx.strokeStyle = '#e74c3c';
+                // Barrier surface
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(-halfWidth, -20, component.width, 40);
+                
+                // Barrier border
+                this.ctx.strokeStyle = '#34495e';
                 this.ctx.lineWidth = 2;
-                this.ctx.beginPath();
-                this.ctx.moveTo(-5, -10);
-                this.ctx.lineTo(-5, 10);
-                this.ctx.moveTo(5, -10);
-                this.ctx.lineTo(5, 10);
-                this.ctx.stroke();
+                this.ctx.strokeRect(-halfWidth, -20, component.width, 40);
             }
             
             toggleRays() {

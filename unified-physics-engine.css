@@ -1,0 +1,497 @@
+/**
+ * PhizzySim Unified Reality Engine Styles
+ * Revolutionary mathematical visualization system
+ */
+
+/* Floating Equation Overlays */
+.floating-equation {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #00ff88;
+    border-radius: 15px;
+    padding: 15px;
+    min-width: 250px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    cursor: move;
+    font-family: 'Arial', sans-serif;
+}
+
+.floating-equation:hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(0, 255, 136, 0.5);
+}
+
+.floating-equation.pinned {
+    border-color: #ffd700;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4);
+}
+
+.equation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+    padding-bottom: 8px;
+}
+
+.equation-name {
+    font-weight: bold;
+    color: #00ff88;
+    font-size: 16px;
+}
+
+.equation-toggle {
+    cursor: pointer;
+    font-size: 18px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.equation-toggle:hover {
+    opacity: 1;
+}
+
+.equation-formula {
+    font-size: 20px;
+    color: #ffffff;
+    text-align: center;
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(0, 255, 136, 0.1);
+    border-radius: 8px;
+    font-family: 'Times New Roman', serif;
+    letter-spacing: 1px;
+}
+
+.math-symbol {
+    color: #00ccff;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+sup {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+sub {
+    color: #4ecdc4;
+    font-weight: bold;
+}
+
+.equation-variables {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.variable {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    font-size: 12px;
+    color: #ffffff;
+}
+
+.variable:hover {
+    background: rgba(0, 255, 136, 0.2);
+    border-color: #00ff88;
+    transform: translateY(-2px);
+}
+
+.variable[draggable="true"] {
+    cursor: grab;
+}
+
+.variable[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.variable-value {
+    color: #ffd700;
+    font-weight: bold;
+    display: block;
+    margin-top: 3px;
+}
+
+/* Variable Editor */
+.variable-editor {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid #00ff88;
+    border-radius: 8px;
+    padding: 10px;
+    z-index: 1001;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.variable-editor input[type="number"] {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #00ff88;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    margin-bottom: 5px;
+}
+
+.slider-container {
+    margin: 8px 0;
+}
+
+.variable-editor input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    outline: none;
+}
+
+.variable-editor input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #00ff88;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.apply-btn {
+    width: 100%;
+    padding: 6px;
+    background: linear-gradient(45deg, #00ff88, #00cc66);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.apply-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Analysis Panel */
+.analysis-panel {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 350px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #4ecdc4;
+    border-radius: 15px;
+    backdrop-filter: blur(15px);
+    z-index: 999;
+    box-shadow: 0 10px 30px rgba(78, 205, 196, 0.3);
+}
+
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid rgba(78, 205, 196, 0.3);
+    color: #4ecdc4;
+}
+
+.analysis-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.minimize-btn {
+    background: none;
+    border: none;
+    color: #4ecdc4;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    transition: background 0.2s ease;
+}
+
+.minimize-btn:hover {
+    background: rgba(78, 205, 196, 0.2);
+}
+
+.analysis-content {
+    padding: 15px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.graph-container {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(78, 205, 196, 0.2);
+}
+
+.graph-container canvas {
+    width: 100%;
+    height: 150px;
+    border-radius: 4px;
+}
+
+.graph-container::before {
+    content: attr(id);
+    display: block;
+    font-size: 14px;
+    font-weight: bold;
+    color: #4ecdc4;
+    margin-bottom: 10px;
+    text-transform: capitalize;
+}
+
+/* Insight Stream */
+.insight-stream {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 300px;
+    max-height: 200px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #ff6b6b;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    z-index: 998;
+    overflow: hidden;
+}
+
+.insight-header {
+    padding: 12px 15px;
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.insight-content {
+    padding: 15px;
+    max-height: 150px;
+    overflow-y: auto;
+    color: #ffffff;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.insight-item {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    border-left: 3px solid #ff6b6b;
+    animation: insightAppear 0.5s ease;
+}
+
+@keyframes insightAppear {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Mathematical DNA Strands */
+.math-dna {
+    position: absolute;
+    pointer-events: none;
+    z-index: 500;
+}
+
+.dna-strand {
+    stroke: #00ff88;
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.6;
+    animation: dnaFlow 3s ease-in-out infinite;
+}
+
+@keyframes dnaFlow {
+    0%, 100% { stroke-dashoffset: 0; }
+    50% { stroke-dashoffset: 20; }
+}
+
+.dna-base {
+    fill: #4ecdc4;
+    r: 3;
+    animation: basePulse 2s ease-in-out infinite;
+}
+
+@keyframes basePulse {
+    0%, 100% { r: 3; opacity: 0.8; }
+    50% { r: 5; opacity: 1; }
+}
+
+/* Cross-Simulator Bridges */
+.simulator-bridge {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.95);
+    border: 3px solid #ffd700;
+    border-radius: 20px;
+    padding: 20px;
+    z-index: 2000;
+    box-shadow: 0 20px 50px rgba(255, 215, 0, 0.4);
+    backdrop-filter: blur(20px);
+}
+
+.bridge-title {
+    text-align: center;
+    color: #ffd700;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.bridge-connections {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.bridge-simulator {
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    text-align: center;
+    color: #ffffff;
+    min-width: 120px;
+}
+
+.bridge-arrow {
+    font-size: 30px;
+    color: #ffd700;
+    animation: bridgeFlow 1.5s ease-in-out infinite;
+}
+
+@keyframes bridgeFlow {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(5px); }
+}
+
+/* Interactive Formula Manipulation */
+.formula-workspace {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #45b7d1;
+    border-radius: 15px;
+    padding: 20px;
+    min-width: 400px;
+    backdrop-filter: blur(15px);
+    z-index: 1500;
+}
+
+.formula-input {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.formula-input input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #45b7d1;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-size: 16px;
+}
+
+.formula-output {
+    background: rgba(69, 183, 209, 0.1);
+    border: 1px solid #45b7d1;
+    border-radius: 8px;
+    padding: 15px;
+    color: #ffffff;
+    font-family: 'Times New Roman', serif;
+    font-size: 18px;
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .floating-equation {
+        min-width: 200px;
+        font-size: 14px;
+    }
+    
+    .analysis-panel {
+        width: 280px;
+    }
+    
+    .insight-stream {
+        width: 250px;
+    }
+    
+    .formula-workspace {
+        min-width: 300px;
+        left: 20px;
+        right: 20px;
+        transform: none;
+    }
+}
+
+/* Mathematical Animation Effects */
+.equation-glow {
+    animation: mathGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes mathGlow {
+    from { 
+        box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+        border-color: #00ff88;
+    }
+    to { 
+        box-shadow: 0 15px 40px rgba(0, 255, 136, 0.6);
+        border-color: #00ffaa;
+    }
+}
+
+.variable-highlight {
+    animation: variableHighlight 1s ease-in-out;
+}
+
+@keyframes variableHighlight {
+    0% { background: rgba(255, 255, 255, 0.1); }
+    50% { background: rgba(255, 215, 0, 0.4); }
+    100% { background: rgba(255, 255, 255, 0.1); }
+}
+
+/* Physics Connection Lines */
+.physics-connection {
+    stroke: #ffd700;
+    stroke-width: 2;
+    stroke-dasharray: 5, 5;
+    fill: none;
+    opacity: 0.7;
+    animation: connectionFlow 2s linear infinite;
+}
+
+@keyframes connectionFlow {
+    to { stroke-dashoffset: -10; }
+}
