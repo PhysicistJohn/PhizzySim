@@ -3,106 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Earth Physics Simulation</title>
+    <title>Electromagnetic Field Playground ⚡</title>
     <style>
-        body {
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
             overflow: hidden;
-            font-family: Arial, sans-serif;
         }
-        #info {
+
+        #canvas {
+            display: block;
+            background: radial-gradient(circle at center, #1a1a2e, #0a0a0a);
+            cursor: crosshair;
+        }
+
+        .controls {
             position: absolute;
-            top: 10px;
-            left: 10px;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ffff;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
             color: white;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
+            padding: 10px 20px;
             border-radius: 5px;
-            z-index: 100;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: transform 0.2s;
         }
-        #controls {
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #4ecdc4, #45b7d1);
+            box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+        }
+
+        .charge-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .info {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            color: white;
-            background: rgba(0, 0, 0, 0.7);
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
             padding: 15px;
-            border-radius: 5px;
-            z-index: 100;
+            border-radius: 10px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            color: #aaa;
         }
-        #controls button {
-            display: block;
-            margin: 5px 0;
-            padding: 5px 10px;
-            width: 100%;
-        }
-        #controls label {
-            display: block;
-            margin: 10px 0 5px 0;
-        }
-        #controls input[type="range"] {
-            width: 100%;
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        <h3>Earth Physics Simulation</h3>
-        <p>Day: <span id="day">0</span></p>
-        <p>Time: <span id="time">00:00</span></p>
-        <p>Season: <span id="season">Spring</span></p>
-    </div>
-    <div id="controls">
-        <h3>Controls</h3>
-        <label>Time Speed: <span id="speedLabel">1x</span></label>
-        <input type="range" id="timeSpeed" min="0" max="100" value="1" step="0.1">
-        <button id="pauseBtn">Pause</button>
-        <button id="resetBtn">Reset</button>
-        <label>View:</label>
-        <button id="viewEarth">Earth View</button>
-        <button id="viewOrbit">Orbital View</button>
-        <button id="viewEarthSun">Earth-Sun View</button>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <div class="title">⚡ EM Field Playground</div>
         
-        <h4>Magnetosphere</h4>
-        <label>
-            <input type="checkbox" id="showMagnetosphere" checked> Magnetosphere
-        </label>
-        <label>
-            <input type="checkbox" id="showSolarWind" checked> Solar Wind
-        </label>
-        <label>
-            <input type="checkbox" id="showRadiationBelts" checked> Radiation Belts
-        </label>
-        <label>
-            <input type="checkbox" id="showAurora" checked> Aurora
-        </label>
-        <label>
-            <input type="checkbox" id="showFieldLines" checked> Field Lines
-        </label>
-        
-        <h4>Solar Wind Parameters</h4>
-        <label>Wind Speed: <span id="windSpeedLabel">400</span> km/s</label>
-        <input type="range" id="windSpeed" min="200" max="800" value="400" step="10">
-        <label>Wind Density: <span id="windDensityLabel">5</span> p/cm³</label>
-        <input type="range" id="windDensity" min="1" max="20" value="5" step="0.5">
-        <label>Temperature: <span id="tempLabel">100000</span> K</label>
-        <input type="range" id="windTemp" min="50000" max="2000000" value="100000" step="10000">
-        <label>Magnetic Field: <span id="bFieldLabel">5</span> nT</label>
-        <input type="range" id="windBField" min="1" max="50" value="5" step="1">
-        
-        <h4>Particle Info</h4>
-        <div id="particleInfo" style="font-size: 12px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 3px; margin-top: 10px;">
-            <div><strong>Solar Wind Particles:</strong></div>
-            <div>• Protons (H⁺): 95% - Main component</div>
-            <div>• Alpha particles (He²⁺): 4% - Helium nuclei</div>
-            <div>• Heavy ions: 1% - C, O, Si, Fe</div>
-            <br>
-            <div><strong>Color Coding:</strong></div>
-            <div style="color: #ff4444;">• Red: Outside magnetosphere</div>
-            <div style="color: #4444ff;">• Blue: Inside magnetosphere</div>
-            <div style="color: #44ff44;">• Green: Magnetopause boundary</div>
+        <div class="control-group">
+            <label>Mode:</label>
+            <div class="charge-controls">
+                <button id="addPositive" class="active">Add +</button>
+                <button id="addNegative">Add -</button>
+                <button id="addParticle">Add Test</button>
+                <button id="dragMode">Drag</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Visualization:</label>
+            <button id="toggleField">Field Lines: ON</button>
+            <button id="toggleParticles">Particles: ON</button>
+            <button id="clearAll">Clear All</button>
+        </div>
+
+        <div class="control-group">
+            <label>Physics:</label>
+            <button id="pausePlay">Pause</button>
+            <button id="resetSim">Reset</button>
         </div>
     </div>
-    <script type="module" src="/src/main.js"></script>
+
+    <div class="info">
+        <strong>Controls:</strong><br>
+        • Click to place charges/particles<br>
+        • Drag mode: move charges around<br>
+        • Watch electric fields update in real-time<br>
+        • Test particles follow field lines
+    </div>
+
+    <script src="em-playground.js"></script>
 </body>
 </html>

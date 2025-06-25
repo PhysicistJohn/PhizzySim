@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Constructor Pro ⚡</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            background: #2a2a2a;
+            cursor: crosshair;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ff88;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 2px;
+            transition: transform 0.2s;
+            font-size: 12px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #ff6600, #ff9900);
+            box-shadow: 0 0 20px rgba(255, 102, 0, 0.5);
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin: 10px 0;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ff88, #00cc66, #44ffaa);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .measurements {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            backdrop-filter: blur(10px);
+            font-size: 14px;
+            color: #00ff88;
+        }
+
+        .nav-home {
+            position: absolute;
+            top: 200px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            color: #00ff88;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <a href="physics-simulator.html" class="nav-home">← Back to Home</a>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <div class="title">⚡ Circuit Constructor</div>
+        
+        <div class="control-group">
+            <label>Components:</label>
+            <div class="component-grid">
+                <button id="addBattery" class="active">🔋 Battery</button>
+                <button id="addResistor">🏠 Resistor</button>
+                <button id="addLED">💡 LED</button>
+                <button id="addCapacitor">⚡ Capacitor</button>
+                <button id="addSwitch">🔄 Switch</button>
+                <button id="addWire">📏 Wire</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Tools:</label>
+            <button id="moveMode">✋ Move</button>
+            <button id="deleteMode">🗑️ Delete</button>
+            <button id="rotateMode">🔄 Rotate</button>
+        </div>
+
+        <div class="control-group">
+            <label>Simulation:</label>
+            <button id="powerOn">⚡ Power ON</button>
+            <button id="clearAll">🧹 Clear</button>
+            <button id="resetSim">🔄 Reset</button>
+        </div>
+    </div>
+
+    <div class="measurements">
+        <div><strong>Circuit Analysis:</strong></div>
+        <div>Total Voltage: <span id="totalVoltage">0</span> V</div>
+        <div>Total Current: <span id="totalCurrent">0</span> A</div>
+        <div>Total Resistance: <span id="totalResistance">∞</span> Ω</div>
+        <div>Power: <span id="totalPower">0</span> W</div>
+        <div>Status: <span id="circuitStatus">Open</span></div>
+    </div>
+
+    <div class="info">
+        <strong>Circuit Constructor Pro:</strong><br>
+        • Click to place components<br>
+        • Connect with wires to complete circuits<br>
+        • Toggle power to see current flow<br>
+        • Watch LEDs light up and measure values
+    </div>
+
+    <script>
+        class CircuitConstructor {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                this.components = [];
+                this.wires = [];
+                this.connections = [];
+                
+                this.mode = 'battery';
+                this.powered = false;
+                this.selectedComponent = null;
+                
+                this.gridSize = 20;
+                this.currentFlow = [];
+                
+                this.setupCanvas();
+                this.setupControls();
+                this.setupEventListeners();
+                this.animate();
+            }
+            
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+            
+            setupControls() {
+                document.getElementById('addBattery').onclick = () => this.setMode('battery');
+                document.getElementById('addResistor').onclick = () => this.setMode('resistor');
+                document.getElementById('addLED').onclick = () => this.setMode('led');
+                document.getElementById('addCapacitor').onclick = () => this.setMode('capacitor');
+                document.getElementById('addSwitch').onclick = () => this.setMode('switch');
+                document.getElementById('addWire').onclick = () => this.setMode('wire');
+                
+                document.getElementById('moveMode').onclick = () => this.setMode('move');
+                document.getElementById('deleteMode').onclick = () => this.setMode('delete');
+                document.getElementById('rotateMode').onclick = () => this.setMode('rotate');
+                
+                document.getElementById('powerOn').onclick = () => this.togglePower();
+                document.getElementById('clearAll').onclick = () => this.clearAll();
+                document.getElementById('resetSim').onclick = () => this.reset();
+            }
+            
+            setupEventListeners() {
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+            }
+            
+            setMode(mode) {
+                this.mode = mode;
+                document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+                
+                const buttonMap = {
+                    'battery': 'addBattery',
+                    'resistor': 'addResistor',
+                    'led': 'addLED',
+                    'capacitor': 'addCapacitor',
+                    'switch': 'addSwitch',
+                    'wire': 'addWire',
+                    'move': 'moveMode',
+                    'delete': 'deleteMode',
+                    'rotate': 'rotateMode'
+                };
+                
+                if (buttonMap[mode]) {
+                    document.getElementById(buttonMap[mode]).classList.add('active');
+                }
+            }
+            
+            handleClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = Math.round((e.clientX - rect.left) / this.gridSize) * this.gridSize;
+                const y = Math.round((e.clientY - rect.top) / this.gridSize) * this.gridSize;
+                
+                if (this.mode === 'delete') {
+                    this.deleteComponentAt(x, y);
+                } else if (this.mode === 'rotate') {
+                    this.rotateComponentAt(x, y);
+                } else if (this.mode === 'move') {
+                    // Move mode logic would go here
+                } else if (this.mode === 'wire') {
+                    this.handleWireClick(x, y);
+                } else {
+                    this.addComponent(x, y);
+                }
+            }
+            
+            handleMouseMove(e) {
+                // Update cursor based on mode and hover
+                this.canvas.style.cursor = this.mode === 'delete' ? 'not-allowed' : 
+                                         this.mode === 'move' ? 'grab' : 'crosshair';
+            }
+            
+            addComponent(x, y) {
+                const component = {
+                    id: Date.now(),
+                    type: this.mode,
+                    x: x,
+                    y: y,
+                    rotation: 0,
+                    value: this.getDefaultValue(this.mode),
+                    state: this.mode === 'switch' ? false : true,
+                    connections: []
+                };
+                
+                this.components.push(component);
+                this.updateCircuitAnalysis();
+            }
+            
+            getDefaultValue(type) {
+                const defaults = {
+                    'battery': 9,      // volts
+                    'resistor': 100,   // ohms
+                    'led': 2,          // forward voltage
+                    'capacitor': 100,  // microfarads
+                    'switch': 1        // on/off
+                };
+                return defaults[type] || 1;
+            }
+            
+            deleteComponentAt(x, y) {
+                const component = this.getComponentAt(x, y);
+                if (component) {
+                    this.components = this.components.filter(c => c.id !== component.id);
+                    this.updateCircuitAnalysis();
+                }
+            }
+            
+            rotateComponentAt(x, y) {
+                const component = this.getComponentAt(x, y);
+                if (component) {
+                    component.rotation = (component.rotation + 90) % 360;
+                }
+            }
+            
+            getComponentAt(x, y) {
+                return this.components.find(c => 
+                    Math.abs(c.x - x) < this.gridSize && 
+                    Math.abs(c.y - y) < this.gridSize
+                );
+            }
+            
+            handleWireClick(x, y) {
+                if (!this.selectedComponent) {
+                    this.selectedComponent = this.getComponentAt(x, y);
+                } else {
+                    const target = this.getComponentAt(x, y);
+                    if (target && target !== this.selectedComponent) {
+                        this.connectComponents(this.selectedComponent, target);
+                    }
+                    this.selectedComponent = null;
+                }
+            }
+            
+            connectComponents(comp1, comp2) {
+                const wire = {
+                    id: Date.now(),
+                    from: comp1.id,
+                    to: comp2.id,
+                    current: 0
+                };
+                
+                this.wires.push(wire);
+                comp1.connections.push(comp2.id);
+                comp2.connections.push(comp1.id);
+                this.updateCircuitAnalysis();
+            }
+            
+            updateCircuitAnalysis() {
+                if (!this.powered) {
+                    this.updateMeasurements(0, 0, Infinity, 0, 'Open');
+                    return;
+                }
+                
+                // Simple circuit analysis
+                const batteries = this.components.filter(c => c.type === 'battery');
+                const resistors = this.components.filter(c => c.type === 'resistor');
+                const switches = this.components.filter(c => c.type === 'switch');
+                
+                let totalVoltage = batteries.reduce((sum, b) => sum + b.value, 0);
+                let totalResistance = resistors.reduce((sum, r) => sum + r.value, 0);
+                
+                // Check if circuit is closed (simple check)
+                const openSwitches = switches.filter(s => !s.state);
+                const isCircuitClosed = openSwitches.length === 0 && this.wires.length > 0;
+                
+                let current = 0;
+                let power = 0;
+                
+                if (isCircuitClosed && totalResistance > 0) {
+                    current = totalVoltage / totalResistance;
+                    power = totalVoltage * current;
+                }
+                
+                const status = isCircuitClosed ? 'Closed' : 'Open';
+                this.updateMeasurements(totalVoltage, current, totalResistance, power, status);
+                
+                // Update component states
+                this.components.forEach(comp => {
+                    if (comp.type === 'led') {
+                        comp.lit = isCircuitClosed && current > 0.01;
+                    }
+                });
+                
+                // Calculate current flow for animation
+                this.calculateCurrentFlow(current);
+            }
+            
+            calculateCurrentFlow(current) {
+                this.currentFlow = [];
+                if (current > 0) {
+                    this.wires.forEach(wire => {
+                        const fromComp = this.components.find(c => c.id === wire.from);
+                        const toComp = this.components.find(c => c.id === wire.to);
+                        
+                        if (fromComp && toComp) {
+                            this.currentFlow.push({
+                                x1: fromComp.x,
+                                y1: fromComp.y,
+                                x2: toComp.x,
+                                y2: toComp.y,
+                                intensity: current
+                            });
+                        }
+                    });
+                }
+            }
+            
+            updateMeasurements(voltage, current, resistance, power, status) {
+                document.getElementById('totalVoltage').textContent = voltage.toFixed(1);
+                document.getElementById('totalCurrent').textContent = current.toFixed(3);
+                document.getElementById('totalResistance').textContent = 
+                    resistance === Infinity ? '∞' : resistance.toFixed(1);
+                document.getElementById('totalPower').textContent = power.toFixed(2);
+                document.getElementById('circuitStatus').textContent = status;
+            }
+            
+            render() {
+                // Clear canvas
+                this.ctx.fillStyle = '#2a2a2a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw grid
+                this.ctx.strokeStyle = '#444';
+                this.ctx.lineWidth = 1;
+                for (let x = 0; x < this.canvas.width; x += this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y < this.canvas.height; y += this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+                
+                // Draw wires
+                this.wires.forEach(wire => {
+                    const fromComp = this.components.find(c => c.id === wire.from);
+                    const toComp = this.components.find(c => c.id === wire.to);
+                    
+                    if (fromComp && toComp) {
+                        this.ctx.strokeStyle = this.powered ? '#00ff88' : '#666';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(fromComp.x, fromComp.y);
+                        this.ctx.lineTo(toComp.x, toComp.y);
+                        this.ctx.stroke();
+                    }
+                });
+                
+                // Draw current flow animation
+                if (this.powered) {
+                    this.currentFlow.forEach(flow => {
+                        const time = Date.now() * 0.005;
+                        const progress = (Math.sin(time) + 1) * 0.5;
+                        
+                        const x = flow.x1 + (flow.x2 - flow.x1) * progress;
+                        const y = flow.y1 + (flow.y2 - flow.y1) * progress;
+                        
+                        this.ctx.save();
+                        this.ctx.shadowColor = '#00ff88';
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.fillStyle = '#00ff88';
+                        this.ctx.beginPath();
+                        this.ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                        this.ctx.fill();
+                        this.ctx.restore();
+                    });
+                }
+                
+                // Draw components
+                this.components.forEach(comp => {
+                    this.drawComponent(comp);
+                });
+                
+                // Highlight selected component
+                if (this.selectedComponent) {
+                    this.ctx.strokeStyle = '#ffff00';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.strokeRect(
+                        this.selectedComponent.x - 15,
+                        this.selectedComponent.y - 15,
+                        30, 30
+                    );
+                }
+            }
+            
+            drawComponent(comp) {
+                this.ctx.save();
+                this.ctx.translate(comp.x, comp.y);
+                this.ctx.rotate(comp.rotation * Math.PI / 180);
+                
+                switch (comp.type) {
+                    case 'battery':
+                        this.drawBattery(comp);
+                        break;
+                    case 'resistor':
+                        this.drawResistor(comp);
+                        break;
+                    case 'led':
+                        this.drawLED(comp);
+                        break;
+                    case 'capacitor':
+                        this.drawCapacitor(comp);
+                        break;
+                    case 'switch':
+                        this.drawSwitch(comp);
+                        break;
+                }
+                
+                this.ctx.restore();
+            }
+            
+            drawBattery(comp) {
+                // Battery symbol
+                this.ctx.strokeStyle = '#ff6666';
+                this.ctx.lineWidth = 3;
+                
+                // Positive terminal
+                this.ctx.beginPath();
+                this.ctx.moveTo(-5, -15);
+                this.ctx.lineTo(-5, 15);
+                this.ctx.stroke();
+                
+                // Negative terminal
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(5, -10);
+                this.ctx.lineTo(5, 10);
+                this.ctx.stroke();
+                
+                // Label
+                this.ctx.fillStyle = '#ff6666';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(`${comp.value}V`, 0, -20);
+            }
+            
+            drawResistor(comp) {
+                // Resistor zigzag
+                this.ctx.strokeStyle = '#ffaa00';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-15, 0);
+                this.ctx.lineTo(-10, -8);
+                this.ctx.lineTo(-5, 8);
+                this.ctx.lineTo(0, -8);
+                this.ctx.lineTo(5, 8);
+                this.ctx.lineTo(10, -8);
+                this.ctx.lineTo(15, 0);
+                this.ctx.stroke();
+                
+                // Label
+                this.ctx.fillStyle = '#ffaa00';
+                this.ctx.font = '10px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(`${comp.value}Ω`, 0, -15);
+            }
+            
+            drawLED(comp) {
+                // LED symbol
+                const color = comp.lit ? '#00ff00' : '#666';
+                this.ctx.fillStyle = color;
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 2;
+                
+                // Triangle
+                this.ctx.beginPath();
+                this.ctx.moveTo(-8, -8);
+                this.ctx.lineTo(8, 0);
+                this.ctx.lineTo(-8, 8);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Line
+                this.ctx.beginPath();
+                this.ctx.moveTo(8, -8);
+                this.ctx.lineTo(8, 8);
+                this.ctx.stroke();
+                
+                // Glow effect if lit
+                if (comp.lit) {
+                    this.ctx.save();
+                    this.ctx.shadowColor = '#00ff00';
+                    this.ctx.shadowBlur = 20;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 12, 0, 2 * Math.PI);
+                    this.ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                    this.ctx.fill();
+                    this.ctx.restore();
+                }
+            }
+            
+            drawCapacitor(comp) {
+                // Capacitor plates
+                this.ctx.strokeStyle = '#00aaff';
+                this.ctx.lineWidth = 3;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(-3, -12);
+                this.ctx.lineTo(-3, 12);
+                this.ctx.stroke();
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(3, -12);
+                this.ctx.lineTo(3, 12);
+                this.ctx.stroke();
+                
+                // Label
+                this.ctx.fillStyle = '#00aaff';
+                this.ctx.font = '10px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(`${comp.value}μF`, 0, -18);
+            }
+            
+            drawSwitch(comp) {
+                // Switch
+                const color = comp.state ? '#00ff00' : '#ff0000';
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 3;
+                
+                // Connection points
+                this.ctx.beginPath();
+                this.ctx.arc(-10, 0, 2, 0, 2 * Math.PI);
+                this.ctx.arc(10, 0, 2, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Switch arm
+                if (comp.state) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-10, 0);
+                    this.ctx.lineTo(10, 0);
+                    this.ctx.stroke();
+                } else {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-10, 0);
+                    this.ctx.lineTo(5, -8);
+                    this.ctx.stroke();
+                }
+                
+                // Label
+                this.ctx.fillStyle = color;
+                this.ctx.font = '10px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(comp.state ? 'ON' : 'OFF', 0, -15);
+            }
+            
+            togglePower() {
+                this.powered = !this.powered;
+                document.getElementById('powerOn').textContent = this.powered ? '⚡ Power OFF' : '⚡ Power ON';
+                this.updateCircuitAnalysis();
+            }
+            
+            clearAll() {
+                this.components = [];
+                this.wires = [];
+                this.connections = [];
+                this.selectedComponent = null;
+                this.updateCircuitAnalysis();
+            }
+            
+            reset() {
+                this.clearAll();
+                this.powered = false;
+                document.getElementById('powerOn').textContent = '⚡ Power ON';
+            }
+            
+            animate() {
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        // Initialize the constructor
+        const constructor = new CircuitConstructor();
+    </script>
+</body>
+</html>

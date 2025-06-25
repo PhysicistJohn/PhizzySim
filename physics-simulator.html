@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhizzySim - Physics Simulator Collection 🚀</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .main-title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #ffeaa7);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3)); }
+            to { filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.6)); }
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+
+        .simulator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            padding: 40px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .simulator-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .simulator-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .simulator-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .simulator-card:hover::before {
+            left: 100%;
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .card-description {
+            font-size: 0.95rem;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .card-features {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        .card-features li {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin: 5px 0;
+            padding-left: 15px;
+            position: relative;
+        }
+
+        .card-features li::before {
+            content: '⚡';
+            position: absolute;
+            left: 0;
+        }
+
+        .launch-button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .launch-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .featured {
+            border: 2px solid #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .featured::after {
+            content: '🌟 FEATURED';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ffd700;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            padding: 40px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .footer-text {
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.5rem;
+            }
+            
+            .simulator-grid {
+                grid-template-columns: 1fr;
+                padding: 20px 10px;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="main-title">🚀 PhizzySim</h1>
+        <p class="subtitle">Interactive Physics Simulators for Modern Education</p>
+    </div>
+
+    <div class="simulator-grid">
+        <div class="simulator-card featured" onclick="launchSimulator('index.html')">
+            <div class="card-icon">⚡</div>
+            <h2 class="card-title">Electromagnetic Field Playground</h2>
+            <p class="card-description">
+                Explore electric fields, charges, and particle motion in an interactive environment with stunning visualizations.
+            </p>
+            <ul class="card-features">
+                <li>Interactive charge placement</li>
+                <li>Real-time field line visualization</li>
+                <li>Test particle motion simulation</li>
+                <li>Drag and drop functionality</li>
+                <li>WebGL-powered rendering</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+
+        <div class="simulator-card" onclick="launchSimulator('wave-interference.html')">
+            <div class="card-icon">🌊</div>
+            <h2 class="card-title">Wave Interference Studio</h2>
+            <p class="card-description">
+                Visualize wave interference patterns, constructive and destructive interference, and wave propagation.
+            </p>
+            <ul class="card-features">
+                <li>Multiple wave sources</li>
+                <li>Adjustable frequency and amplitude</li>
+                <li>Real-time interference patterns</li>
+                <li>Beautiful wave animations</li>
+                <li>Educational demonstrations</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+
+        <div class="simulator-card" onclick="launchSimulator('projectile-3d.html')">
+            <div class="card-icon">🚀</div>
+            <h2 class="card-title">Projectile Master 3D</h2>
+            <p class="card-description">
+                Master projectile motion with realistic physics, trajectory analysis, and interactive controls.
+            </p>
+            <ul class="card-features">
+                <li>Realistic ballistic physics</li>
+                <li>Trajectory analysis tools</li>
+                <li>Air resistance simulation</li>
+                <li>Multi-shot capabilities</li>
+                <li>Performance measurements</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+
+        <div class="simulator-card" onclick="launchSimulator('circuit-constructor.html')">
+            <div class="card-icon">⚡</div>
+            <h2 class="card-title">Circuit Constructor Pro</h2>
+            <p class="card-description">
+                Build and analyze electrical circuits with realistic components and live current flow visualization.
+            </p>
+            <ul class="card-features">
+                <li>Drag and drop components</li>
+                <li>Live circuit analysis</li>
+                <li>Current flow animation</li>
+                <li>Voltage and resistance meters</li>
+                <li>Component library</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+
+        <div class="simulator-card" onclick="launchSimulator('pendulum-lab.html')">
+            <div class="card-icon">🕰️</div>
+            <h2 class="card-title">Pendulum Lab</h2>
+            <p class="card-description">
+                Explore pendulum physics with adjustable parameters, period measurements, and phase space analysis.
+            </p>
+            <ul class="card-features">
+                <li>Variable length and mass</li>
+                <li>Period and frequency analysis</li>
+                <li>Damping effects</li>
+                <li>Phase space visualization</li>
+                <li>Multiple pendulum support</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+
+        <div class="simulator-card" onclick="launchSimulator('optics-bench.html')">
+            <div class="card-icon">🔬</div>
+            <h2 class="card-title">Optics Bench</h2>
+            <p class="card-description">
+                Experiment with light rays, lenses, mirrors, and prisms in a virtual optical laboratory.
+            </p>
+            <ul class="card-features">
+                <li>Ray tracing simulation</li>
+                <li>Lens and mirror interactions</li>
+                <li>Wavelength-dependent colors</li>
+                <li>Reflection and refraction</li>
+                <li>Optical component library</li>
+            </ul>
+            <button class="launch-button">Launch Simulator</button>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-number">6</div>
+            <div class="stat-label">Interactive Simulators</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">∞</div>
+            <div class="stat-label">Learning Possibilities</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">60</div>
+            <div class="stat-label">FPS Performance</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p class="footer-text">
+            🌟 Built with modern web technologies for immersive physics education<br>
+            Designed to make physics concepts visual, interactive, and exciting!
+        </p>
+    </div>
+
+    <script>
+        function launchSimulator(filename) {
+            // Add a loading effect
+            const cards = document.querySelectorAll('.simulator-card');
+            cards.forEach(card => {
+                if (card.getAttribute('onclick').includes(filename)) {
+                    card.style.transform = 'scale(0.95)';
+                    card.style.opacity = '0.7';
+                    
+                    setTimeout(() => {
+                        window.location.href = filename;
+                    }, 200);
+                }
+            });
+        }
+
+        // Add floating particles animation
+        function createParticle() {
+            const particle = document.createElement('div');
+            particle.style.cssText = `
+                position: fixed;
+                width: 4px;
+                height: 4px;
+                background: rgba(255, 255, 255, 0.6);
+                border-radius: 50%;
+                pointer-events: none;
+                z-index: -1;
+                left: ${Math.random() * window.innerWidth}px;
+                top: ${window.innerHeight + 10}px;
+                animation: float ${5 + Math.random() * 5}s linear forwards;
+            `;
+            
+            document.body.appendChild(particle);
+            
+            setTimeout(() => {
+                particle.remove();
+            }, 10000);
+        }
+
+        // Add CSS animation for floating particles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes float {
+                to {
+                    transform: translateY(-${window.innerHeight + 20}px) translateX(${Math.random() * 200 - 100}px);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Create particles periodically
+        setInterval(createParticle, 300);
+
+        // Add hover sound effect (optional)
+        document.querySelectorAll('.simulator-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                // You could add a subtle sound effect here
+                card.style.transition = 'all 0.3s ease';
+            });
+        });
+
+        // Add keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const cards = document.querySelectorAll('.simulator-card');
+            if (e.key >= '1' && e.key <= '6') {
+                const index = parseInt(e.key) - 1;
+                if (cards[index]) {
+                    cards[index].click();
+                }
+            }
+        });
+
+        // Add performance monitoring
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        function measureFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                // Update FPS stat if needed
+                lastTime = currentTime;
+                frameCount = 0;
+            }
+            
+            requestAnimationFrame(measureFPS);
+        }
+        
+        measureFPS();
+    </script>
+</body>
+</html>
